@@ -1,0 +1,133 @@
+{
+	"node_list" : 
+	[
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"vgg0_conv0_fwd"
+			],
+			"consumer_num" : 1,
+			"index" : 0,
+			"name" : "data",
+			"operation" : "OP_INPUT",
+			"output_dim" : 
+			[
+				1,
+				2,
+				16,
+				16
+			],
+			"output_dim_num" : 4,
+			"provider_num" : 0
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_2"
+			],
+			"consumer_num" : 1,
+			"index" : 1,
+			"name" : "vgg0_conv0_fwd",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				16,
+				16,
+				16
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 2,
+				"kernel_h" : 2,
+				"kernel_w" : 2,
+				"output_channel" : 16,
+				"pad_h0" : 1,
+				"pad_h1" : 1,
+				"pad_w0" : 1,
+				"pad_w1" : 1,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"data"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"vgg0_conv1_fwd"
+			],
+			"consumer_num" : 1,
+			"index" : 2,
+			"name" : "ReLU_2",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				16,
+				16,
+				16
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"vgg0_conv0_fwd"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_4"
+			],
+			"consumer_num" : 1,
+			"index" : 3,
+			"name" : "vgg0_conv1_fwd",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				32,
+				16,
+				16
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 16,
+				"kernel_h" : 1,
+				"kernel_w" : 1,
+				"output_channel" : 32,
+				"pad_h0" : 1,
+				"pad_h1" : 1,
+				"pad_w0" : 1,
+				"pad_w1" : 1,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"ReLU_2"
+			],
+			"provider_num" : 1
+		}
+	]
+}

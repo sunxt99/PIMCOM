@@ -1,0 +1,1338 @@
+{
+	"node_list" : 
+	[
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"conv1/7x7_s2_1"
+			],
+			"consumer_num" : 1,
+			"index" : 0,
+			"name" : "data_0",
+			"operation" : "OP_INPUT",
+			"output_dim" : 
+			[
+				1,
+				3,
+				224,
+				224
+			],
+			"output_dim_num" : 4,
+			"provider_num" : 0
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_2"
+			],
+			"consumer_num" : 1,
+			"index" : 1,
+			"name" : "conv1/7x7_s2_1",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				64,
+				112,
+				112
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 3,
+				"kernel_h" : 7,
+				"kernel_w" : 7,
+				"output_channel" : 64,
+				"pad_h0" : 3,
+				"pad_h1" : 3,
+				"pad_w0" : 3,
+				"pad_w1" : 3,
+				"stride_h" : 2,
+				"stride_w" : 2
+			},
+			"provider" : 
+			[
+				"data_0"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"pool1/3x3_s2_1"
+			],
+			"consumer_num" : 1,
+			"index" : 2,
+			"name" : "ReLU_2",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				64,
+				112,
+				112
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"conv1/7x7_s2_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"pool1/norm1_1"
+			],
+			"consumer_num" : 1,
+			"index" : 3,
+			"name" : "pool1/3x3_s2_1",
+			"operation" : "OP_POOL",
+			"output_dim" : 
+			[
+				1,
+				64,
+				55,
+				55
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"kernel_h" : 3,
+				"kernel_w" : 3,
+				"pad_h0" : 0,
+				"pad_h1" : 0,
+				"pad_w0" : 0,
+				"pad_w1" : 0,
+				"pool_method" : 0,
+				"stride_h" : 2,
+				"stride_w" : 2
+			},
+			"provider" : 
+			[
+				"ReLU_2"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"conv2/3x3_reduce_1"
+			],
+			"consumer_num" : 1,
+			"index" : 4,
+			"name" : "pool1/norm1_1",
+			"operation" : "OP_LRN",
+			"output_dim" : 
+			[
+				1,
+				64,
+				55,
+				55
+			],
+			"output_dim_num" : 4,
+			"provider" : 
+			[
+				"pool1/3x3_s2_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_6"
+			],
+			"consumer_num" : 1,
+			"index" : 5,
+			"name" : "conv2/3x3_reduce_1",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				64,
+				55,
+				55
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 64,
+				"kernel_h" : 1,
+				"kernel_w" : 1,
+				"output_channel" : 64,
+				"pad_h0" : 0,
+				"pad_h1" : 0,
+				"pad_w0" : 0,
+				"pad_w1" : 0,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"pool1/norm1_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"conv2/3x3_1"
+			],
+			"consumer_num" : 1,
+			"index" : 6,
+			"name" : "ReLU_6",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				64,
+				55,
+				55
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"conv2/3x3_reduce_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_8"
+			],
+			"consumer_num" : 1,
+			"index" : 7,
+			"name" : "conv2/3x3_1",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				192,
+				55,
+				55
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 64,
+				"kernel_h" : 3,
+				"kernel_w" : 3,
+				"output_channel" : 192,
+				"pad_h0" : 1,
+				"pad_h1" : 1,
+				"pad_w0" : 1,
+				"pad_w1" : 1,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"ReLU_6"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"conv2/norm2_1"
+			],
+			"consumer_num" : 1,
+			"index" : 8,
+			"name" : "ReLU_8",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				192,
+				55,
+				55
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"conv2/3x3_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"pool2/3x3_s2_1"
+			],
+			"consumer_num" : 1,
+			"index" : 9,
+			"name" : "conv2/norm2_1",
+			"operation" : "OP_LRN",
+			"output_dim" : 
+			[
+				1,
+				192,
+				55,
+				55
+			],
+			"output_dim_num" : 4,
+			"provider" : 
+			[
+				"ReLU_8"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"inception_3a/1x1_1",
+				"inception_3a/3x3_reduce_1",
+				"inception_3a/5x5_reduce_1",
+				"inception_3a/pool_1"
+			],
+			"consumer_num" : 4,
+			"index" : 10,
+			"name" : "pool2/3x3_s2_1",
+			"operation" : "OP_POOL",
+			"output_dim" : 
+			[
+				1,
+				192,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"kernel_h" : 3,
+				"kernel_w" : 3,
+				"pad_h0" : 0,
+				"pad_h1" : 0,
+				"pad_w0" : 0,
+				"pad_w1" : 0,
+				"pool_method" : 0,
+				"stride_h" : 2,
+				"stride_w" : 2
+			},
+			"provider" : 
+			[
+				"conv2/norm2_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_12"
+			],
+			"consumer_num" : 1,
+			"index" : 11,
+			"name" : "inception_3a/1x1_1",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				64,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 192,
+				"kernel_h" : 1,
+				"kernel_w" : 1,
+				"output_channel" : 64,
+				"pad_h0" : 0,
+				"pad_h1" : 0,
+				"pad_w0" : 0,
+				"pad_w1" : 0,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"pool2/3x3_s2_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"inception_3a/output_1"
+			],
+			"consumer_num" : 1,
+			"index" : 12,
+			"name" : "ReLU_12",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				64,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"inception_3a/1x1_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_14"
+			],
+			"consumer_num" : 1,
+			"index" : 13,
+			"name" : "inception_3a/3x3_reduce_1",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				96,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 192,
+				"kernel_h" : 1,
+				"kernel_w" : 1,
+				"output_channel" : 96,
+				"pad_h0" : 0,
+				"pad_h1" : 0,
+				"pad_w0" : 0,
+				"pad_w1" : 0,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"pool2/3x3_s2_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"inception_3a/3x3_1"
+			],
+			"consumer_num" : 1,
+			"index" : 14,
+			"name" : "ReLU_14",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				96,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"inception_3a/3x3_reduce_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_16"
+			],
+			"consumer_num" : 1,
+			"index" : 15,
+			"name" : "inception_3a/3x3_1",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				128,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 96,
+				"kernel_h" : 3,
+				"kernel_w" : 3,
+				"output_channel" : 128,
+				"pad_h0" : 1,
+				"pad_h1" : 1,
+				"pad_w0" : 1,
+				"pad_w1" : 1,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"ReLU_14"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"inception_3a/output_1"
+			],
+			"consumer_num" : 1,
+			"index" : 16,
+			"name" : "ReLU_16",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				128,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"inception_3a/3x3_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_18"
+			],
+			"consumer_num" : 1,
+			"index" : 17,
+			"name" : "inception_3a/5x5_reduce_1",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				16,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 192,
+				"kernel_h" : 1,
+				"kernel_w" : 1,
+				"output_channel" : 16,
+				"pad_h0" : 0,
+				"pad_h1" : 0,
+				"pad_w0" : 0,
+				"pad_w1" : 0,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"pool2/3x3_s2_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"inception_3a/5x5_1"
+			],
+			"consumer_num" : 1,
+			"index" : 18,
+			"name" : "ReLU_18",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				16,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"inception_3a/5x5_reduce_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_20"
+			],
+			"consumer_num" : 1,
+			"index" : 19,
+			"name" : "inception_3a/5x5_1",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				32,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 16,
+				"kernel_h" : 5,
+				"kernel_w" : 5,
+				"output_channel" : 32,
+				"pad_h0" : 2,
+				"pad_h1" : 2,
+				"pad_w0" : 2,
+				"pad_w1" : 2,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"ReLU_18"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"inception_3a/output_1"
+			],
+			"consumer_num" : 1,
+			"index" : 20,
+			"name" : "ReLU_20",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				32,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"inception_3a/5x5_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"inception_3a/pool_proj_1"
+			],
+			"consumer_num" : 1,
+			"index" : 21,
+			"name" : "inception_3a/pool_1",
+			"operation" : "OP_POOL",
+			"output_dim" : 
+			[
+				1,
+				192,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"kernel_h" : 3,
+				"kernel_w" : 3,
+				"pad_h0" : 1,
+				"pad_h1" : 1,
+				"pad_w0" : 1,
+				"pad_w1" : 1,
+				"pool_method" : 0,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"pool2/3x3_s2_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_23"
+			],
+			"consumer_num" : 1,
+			"index" : 22,
+			"name" : "inception_3a/pool_proj_1",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				32,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 192,
+				"kernel_h" : 1,
+				"kernel_w" : 1,
+				"output_channel" : 32,
+				"pad_h0" : 0,
+				"pad_h1" : 0,
+				"pad_w0" : 0,
+				"pad_w1" : 0,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"inception_3a/pool_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"inception_3a/output_1"
+			],
+			"consumer_num" : 1,
+			"index" : 23,
+			"name" : "ReLU_23",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				32,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"inception_3a/pool_proj_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"inception_3b/1x1_1",
+				"inception_3b/3x3_reduce_1",
+				"inception_3b/5x5_reduce_1",
+				"inception_3b/pool_1"
+			],
+			"consumer_num" : 4,
+			"index" : 24,
+			"name" : "inception_3a/output_1",
+			"operation" : "OP_CONCAT",
+			"output_dim" : 
+			[
+				1,
+				256,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"axis" : 1
+			},
+			"provider" : 
+			[
+				"ReLU_12",
+				"ReLU_16",
+				"ReLU_20",
+				"ReLU_23"
+			],
+			"provider_num" : 4
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_26"
+			],
+			"consumer_num" : 1,
+			"index" : 25,
+			"name" : "inception_3b/1x1_1",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				128,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 256,
+				"kernel_h" : 1,
+				"kernel_w" : 1,
+				"output_channel" : 128,
+				"pad_h0" : 0,
+				"pad_h1" : 0,
+				"pad_w0" : 0,
+				"pad_w1" : 0,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"inception_3a/output_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"inception_3b/output_1"
+			],
+			"consumer_num" : 1,
+			"index" : 26,
+			"name" : "ReLU_26",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				128,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"inception_3b/1x1_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_28"
+			],
+			"consumer_num" : 1,
+			"index" : 27,
+			"name" : "inception_3b/3x3_reduce_1",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				128,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 256,
+				"kernel_h" : 1,
+				"kernel_w" : 1,
+				"output_channel" : 128,
+				"pad_h0" : 0,
+				"pad_h1" : 0,
+				"pad_w0" : 0,
+				"pad_w1" : 0,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"inception_3a/output_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"inception_3b/3x3_1"
+			],
+			"consumer_num" : 1,
+			"index" : 28,
+			"name" : "ReLU_28",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				128,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"inception_3b/3x3_reduce_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_30"
+			],
+			"consumer_num" : 1,
+			"index" : 29,
+			"name" : "inception_3b/3x3_1",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				192,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 128,
+				"kernel_h" : 3,
+				"kernel_w" : 3,
+				"output_channel" : 192,
+				"pad_h0" : 1,
+				"pad_h1" : 1,
+				"pad_w0" : 1,
+				"pad_w1" : 1,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"ReLU_28"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"inception_3b/output_1"
+			],
+			"consumer_num" : 1,
+			"index" : 30,
+			"name" : "ReLU_30",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				192,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"inception_3b/3x3_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_32"
+			],
+			"consumer_num" : 1,
+			"index" : 31,
+			"name" : "inception_3b/5x5_reduce_1",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				32,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 256,
+				"kernel_h" : 1,
+				"kernel_w" : 1,
+				"output_channel" : 32,
+				"pad_h0" : 0,
+				"pad_h1" : 0,
+				"pad_w0" : 0,
+				"pad_w1" : 0,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"inception_3a/output_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"inception_3b/5x5_1"
+			],
+			"consumer_num" : 1,
+			"index" : 32,
+			"name" : "ReLU_32",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				32,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"inception_3b/5x5_reduce_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_34"
+			],
+			"consumer_num" : 1,
+			"index" : 33,
+			"name" : "inception_3b/5x5_1",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				96,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 32,
+				"kernel_h" : 5,
+				"kernel_w" : 5,
+				"output_channel" : 96,
+				"pad_h0" : 2,
+				"pad_h1" : 2,
+				"pad_w0" : 2,
+				"pad_w1" : 2,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"ReLU_32"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"inception_3b/output_1"
+			],
+			"consumer_num" : 1,
+			"index" : 34,
+			"name" : "ReLU_34",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				96,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"inception_3b/5x5_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"inception_3b/pool_proj_1"
+			],
+			"consumer_num" : 1,
+			"index" : 35,
+			"name" : "inception_3b/pool_1",
+			"operation" : "OP_POOL",
+			"output_dim" : 
+			[
+				1,
+				256,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"kernel_h" : 3,
+				"kernel_w" : 3,
+				"pad_h0" : 1,
+				"pad_h1" : 1,
+				"pad_w0" : 1,
+				"pad_w1" : 1,
+				"pool_method" : 0,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"inception_3a/output_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_37"
+			],
+			"consumer_num" : 1,
+			"index" : 36,
+			"name" : "inception_3b/pool_proj_1",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				64,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 256,
+				"kernel_h" : 1,
+				"kernel_w" : 1,
+				"output_channel" : 64,
+				"pad_h0" : 0,
+				"pad_h1" : 0,
+				"pad_w0" : 0,
+				"pad_w1" : 0,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"inception_3b/pool_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"inception_3b/output_1"
+			],
+			"consumer_num" : 1,
+			"index" : 37,
+			"name" : "ReLU_37",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				64,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"inception_3b/pool_proj_1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"pool3/3x3_s2_1"
+			],
+			"consumer_num" : 1,
+			"index" : 38,
+			"name" : "inception_3b/output_1",
+			"operation" : "OP_CONCAT",
+			"output_dim" : 
+			[
+				1,
+				480,
+				27,
+				27
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"axis" : 1
+			},
+			"provider" : 
+			[
+				"ReLU_26",
+				"ReLU_30",
+				"ReLU_34",
+				"ReLU_37"
+			],
+			"provider_num" : 4
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : [],
+			"consumer_num" : 0,
+			"index" : 39,
+			"name" : "pool3/3x3_s2_1",
+			"operation" : "OP_POOL",
+			"output_dim" : 
+			[
+				1,
+				480,
+				13,
+				13
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"kernel_h" : 3,
+				"kernel_w" : 3,
+				"pad_h0" : 0,
+				"pad_h1" : 0,
+				"pad_w0" : 0,
+				"pad_w1" : 0,
+				"pool_method" : 0,
+				"stride_h" : 2,
+				"stride_w" : 2
+			},
+			"provider" : 
+			[
+				"inception_3b/output_1"
+			],
+			"provider_num" : 1
+		}
+	]
+}

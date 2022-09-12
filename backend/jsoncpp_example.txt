@@ -1,0 +1,48 @@
+//    HOW TO READ
+
+//    Json::Reader jsonReader;
+//    Json::Value jsonValue;
+//    std::ifstream jsonFile("../models/JSON/inception-v1-12-wo-weight.json");
+//    if(!jsonReader.parse(jsonFile, jsonValue, true))
+//    {
+//        std::cout << "error" << std::endl;
+//        return -1;
+//    }
+//    Json::Value graph = jsonValue["graph"];
+//    Json::Value node = graph["node"];
+//    Json::Value input = graph["input"];
+//    Json::Value output = graph["output"];
+//    Json::Value valueInfo = graph["valueInfo"];
+//    int node_num = node.size();
+//    for (int i = 0; i < node_num; ++i)
+//    {
+//        if (node[i]["opType"] == "Conv")
+//        {
+//            std::cout<<node[i]["attribute"].size()<<std::endl;
+//        }
+//    }
+
+
+
+
+//    HOW TO WRITE
+
+//    Json::Value root;
+//    Json::Value itemFaceArray;
+//    Json::Value itemFace;
+//    root["aaa"] = 0;
+//    root["bbb"].resize(3);
+//    itemFace["x"]=1;
+//    itemFace["y"]=1;
+//    itemFace["width"]=100;
+//    itemFace["height"]=100;
+//    itemFace["score"]=95;
+//    itemFaceArray.append(itemFace);
+//    root["faces"] = itemFaceArray;
+//    std::string strJson = root.toStyledString();
+//    std::ofstream fob("out.json", std::ios::trunc | std::ios::out);
+//    if (fob.is_open())
+//    {
+//        fob.write(strJson.c_str(), strJson.length());
+//        fob.close();
+//    }

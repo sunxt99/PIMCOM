@@ -1,0 +1,785 @@
+{
+	"node_list" : 
+	[
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"resnetv15_conv0_fwd"
+			],
+			"consumer_num" : 1,
+			"index" : 0,
+			"name" : "data",
+			"operation" : "OP_INPUT",
+			"output_dim" : 
+			[
+				1,
+				3,
+				224,
+				224
+			],
+			"output_dim_num" : 4,
+			"provider_num" : 0
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_2"
+			],
+			"consumer_num" : 1,
+			"index" : 1,
+			"name" : "resnetv15_conv0_fwd",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				64,
+				112,
+				112
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 3,
+				"kernel_h" : 7,
+				"kernel_w" : 7,
+				"output_channel" : 64,
+				"pad_h0" : 3,
+				"pad_h1" : 3,
+				"pad_w0" : 3,
+				"pad_w1" : 3,
+				"stride_h" : 2,
+				"stride_w" : 2
+			},
+			"provider" : 
+			[
+				"data"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"resnetv15_pool0_fwd"
+			],
+			"consumer_num" : 1,
+			"index" : 2,
+			"name" : "ReLU_2",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				64,
+				112,
+				112
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"resnetv15_conv0_fwd"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"resnetv15_stage1_conv0_fwd",
+				"resnetv15_stage1__plus0"
+			],
+			"consumer_num" : 2,
+			"index" : 3,
+			"name" : "resnetv15_pool0_fwd",
+			"operation" : "OP_POOL",
+			"output_dim" : 
+			[
+				1,
+				64,
+				56,
+				56
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"kernel_h" : 3,
+				"kernel_w" : 3,
+				"pad_h0" : 1,
+				"pad_h1" : 0,
+				"pad_w0" : 1,
+				"pad_w1" : 0,
+				"pool_method" : 0,
+				"stride_h" : 2,
+				"stride_w" : 2
+			},
+			"provider" : 
+			[
+				"ReLU_2"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_5"
+			],
+			"consumer_num" : 1,
+			"index" : 4,
+			"name" : "resnetv15_stage1_conv0_fwd",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				64,
+				56,
+				56
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 64,
+				"kernel_h" : 3,
+				"kernel_w" : 3,
+				"output_channel" : 64,
+				"pad_h0" : 1,
+				"pad_h1" : 1,
+				"pad_w0" : 1,
+				"pad_w1" : 1,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"resnetv15_pool0_fwd"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"resnetv15_stage1_conv1_fwd"
+			],
+			"consumer_num" : 1,
+			"index" : 5,
+			"name" : "ReLU_5",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				64,
+				56,
+				56
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"resnetv15_stage1_conv0_fwd"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_7"
+			],
+			"consumer_num" : 1,
+			"index" : 6,
+			"name" : "resnetv15_stage1_conv1_fwd",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				64,
+				56,
+				56
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 64,
+				"kernel_h" : 3,
+				"kernel_w" : 3,
+				"output_channel" : 64,
+				"pad_h0" : 1,
+				"pad_h1" : 1,
+				"pad_w0" : 1,
+				"pad_w1" : 1,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"ReLU_5"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"resnetv15_stage1__plus0"
+			],
+			"consumer_num" : 1,
+			"index" : 7,
+			"name" : "ReLU_7",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				64,
+				56,
+				56
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"resnetv15_stage1_conv1_fwd"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"resnetv15_stage1_activation0"
+			],
+			"consumer_num" : 1,
+			"index" : 8,
+			"name" : "resnetv15_stage1__plus0",
+			"operation" : "OP_ELTWISE",
+			"output_dim" : 
+			[
+				1,
+				64,
+				56,
+				56
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"eletype" : 2,
+				"power_float" : 1.6261295161737195e-38,
+				"scale_float" : 3.4438311059246704e-41,
+				"shift_float" : 1.4012984643248171e-45
+			},
+			"provider" : 
+			[
+				"resnetv15_pool0_fwd",
+				"ReLU_7"
+			],
+			"provider_num" : 2
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"resnetv15_stage1_conv2_fwd",
+				"resnetv15_stage1__plus1"
+			],
+			"consumer_num" : 2,
+			"index" : 9,
+			"name" : "resnetv15_stage1_activation0",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				64,
+				56,
+				56
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"resnetv15_stage1__plus0"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_11"
+			],
+			"consumer_num" : 1,
+			"index" : 10,
+			"name" : "resnetv15_stage1_conv2_fwd",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				64,
+				56,
+				56
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 64,
+				"kernel_h" : 3,
+				"kernel_w" : 3,
+				"output_channel" : 64,
+				"pad_h0" : 1,
+				"pad_h1" : 1,
+				"pad_w0" : 1,
+				"pad_w1" : 1,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"resnetv15_stage1_activation0"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"resnetv15_stage1_conv3_fwd"
+			],
+			"consumer_num" : 1,
+			"index" : 11,
+			"name" : "ReLU_11",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				64,
+				56,
+				56
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"resnetv15_stage1_conv2_fwd"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_13"
+			],
+			"consumer_num" : 1,
+			"index" : 12,
+			"name" : "resnetv15_stage1_conv3_fwd",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				64,
+				56,
+				56
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 64,
+				"kernel_h" : 3,
+				"kernel_w" : 3,
+				"output_channel" : 64,
+				"pad_h0" : 1,
+				"pad_h1" : 1,
+				"pad_w0" : 1,
+				"pad_w1" : 1,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"ReLU_11"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"resnetv15_stage1__plus1"
+			],
+			"consumer_num" : 1,
+			"index" : 13,
+			"name" : "ReLU_13",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				64,
+				56,
+				56
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"resnetv15_stage1_conv3_fwd"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"resnetv15_stage1_activation1"
+			],
+			"consumer_num" : 1,
+			"index" : 14,
+			"name" : "resnetv15_stage1__plus1",
+			"operation" : "OP_ELTWISE",
+			"output_dim" : 
+			[
+				1,
+				64,
+				56,
+				56
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"eletype" : 2,
+				"power_float" : 1.6261295161737195e-38,
+				"scale_float" : 3.4438311059246704e-41,
+				"shift_float" : 1.4012984643248171e-45
+			},
+			"provider" : 
+			[
+				"resnetv15_stage1_activation0",
+				"ReLU_13"
+			],
+			"provider_num" : 2
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"resnetv15_stage2_conv2_fwd",
+				"resnetv15_stage2_conv0_fwd"
+			],
+			"consumer_num" : 2,
+			"index" : 15,
+			"name" : "resnetv15_stage1_activation1",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				64,
+				56,
+				56
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"resnetv15_stage1__plus1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_17"
+			],
+			"consumer_num" : 1,
+			"index" : 16,
+			"name" : "resnetv15_stage2_conv2_fwd",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				128,
+				28,
+				28
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 64,
+				"kernel_h" : 1,
+				"kernel_w" : 1,
+				"output_channel" : 128,
+				"pad_h0" : 0,
+				"pad_h1" : 0,
+				"pad_w0" : 0,
+				"pad_w1" : 0,
+				"stride_h" : 2,
+				"stride_w" : 2
+			},
+			"provider" : 
+			[
+				"resnetv15_stage1_activation1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"resnetv15_stage2__plus0"
+			],
+			"consumer_num" : 1,
+			"index" : 17,
+			"name" : "ReLU_17",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				128,
+				28,
+				28
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"resnetv15_stage2_conv2_fwd"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_19"
+			],
+			"consumer_num" : 1,
+			"index" : 18,
+			"name" : "resnetv15_stage2_conv0_fwd",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				128,
+				28,
+				28
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 64,
+				"kernel_h" : 3,
+				"kernel_w" : 3,
+				"output_channel" : 128,
+				"pad_h0" : 1,
+				"pad_h1" : 1,
+				"pad_w0" : 1,
+				"pad_w1" : 1,
+				"stride_h" : 2,
+				"stride_w" : 2
+			},
+			"provider" : 
+			[
+				"resnetv15_stage1_activation1"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"resnetv15_stage2_conv1_fwd"
+			],
+			"consumer_num" : 1,
+			"index" : 19,
+			"name" : "ReLU_19",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				128,
+				28,
+				28
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"resnetv15_stage2_conv0_fwd"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_21"
+			],
+			"consumer_num" : 1,
+			"index" : 20,
+			"name" : "resnetv15_stage2_conv1_fwd",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				128,
+				28,
+				28
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 128,
+				"kernel_h" : 3,
+				"kernel_w" : 3,
+				"output_channel" : 128,
+				"pad_h0" : 1,
+				"pad_h1" : 1,
+				"pad_w0" : 1,
+				"pad_w1" : 1,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"ReLU_19"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"resnetv15_stage2__plus0"
+			],
+			"consumer_num" : 1,
+			"index" : 21,
+			"name" : "ReLU_21",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				128,
+				28,
+				28
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"resnetv15_stage2_conv1_fwd"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"resnetv15_stage2_activation0"
+			],
+			"consumer_num" : 1,
+			"index" : 22,
+			"name" : "resnetv15_stage2__plus0",
+			"operation" : "OP_ELTWISE",
+			"output_dim" : 
+			[
+				1,
+				128,
+				28,
+				28
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"eletype" : 2,
+				"power_float" : 1.6261295161737195e-38,
+				"scale_float" : 3.4438311059246704e-41,
+				"shift_float" : 1.4012984643248171e-45
+			},
+			"provider" : 
+			[
+				"ReLU_17",
+				"ReLU_21"
+			],
+			"provider_num" : 2
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : [],
+			"consumer_num" : 0,
+			"index" : 23,
+			"name" : "resnetv15_stage2_activation0",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				128,
+				28,
+				28
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"resnetv15_stage2__plus0"
+			],
+			"provider_num" : 1
+		}
+	]
+}

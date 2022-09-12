@@ -1,0 +1,348 @@
+{
+	"node_list" : 
+	[
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"vgg0_conv10_fwd"
+			],
+			"consumer_num" : 1,
+			"index" : 24,
+			"name" : "data_0",
+			"operation" : "OP_INPUT",
+			"output_dim" : 
+			[
+				1,
+				512,
+				14,
+				14
+			],
+			"output_dim_num" : 4,
+			"provider_num" : 0
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_26"
+			],
+			"consumer_num" : 1,
+			"index" : 25,
+			"name" : "vgg0_conv10_fwd",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				512,
+				14,
+				14
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 512,
+				"kernel_h" : 3,
+				"kernel_w" : 3,
+				"output_channel" : 512,
+				"pad_h0" : 1,
+				"pad_h1" : 1,
+				"pad_w0" : 1,
+				"pad_w1" : 1,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"data_0"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"vgg0_conv11_fwd"
+			],
+			"consumer_num" : 1,
+			"index" : 26,
+			"name" : "ReLU_26",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				512,
+				14,
+				14
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"vgg0_conv10_fwd"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_28"
+			],
+			"consumer_num" : 1,
+			"index" : 27,
+			"name" : "vgg0_conv11_fwd",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				512,
+				14,
+				14
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 512,
+				"kernel_h" : 3,
+				"kernel_w" : 3,
+				"output_channel" : 512,
+				"pad_h0" : 1,
+				"pad_h1" : 1,
+				"pad_w0" : 1,
+				"pad_w1" : 1,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"ReLU_26"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"vgg0_conv12_fwd"
+			],
+			"consumer_num" : 1,
+			"index" : 28,
+			"name" : "ReLU_28",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				512,
+				14,
+				14
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"vgg0_conv11_fwd"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"ReLU_30"
+			],
+			"consumer_num" : 1,
+			"index" : 29,
+			"name" : "vgg0_conv12_fwd",
+			"operation" : "OP_CONV",
+			"output_dim" : 
+			[
+				1,
+				512,
+				14,
+				14
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"dilation_h" : 1,
+				"dilation_w" : 1,
+				"group" : 1,
+				"input_channel" : 512,
+				"kernel_h" : 3,
+				"kernel_w" : 3,
+				"output_channel" : 512,
+				"pad_h0" : 1,
+				"pad_h1" : 1,
+				"pad_w0" : 1,
+				"pad_w1" : 1,
+				"stride_h" : 1,
+				"stride_w" : 1
+			},
+			"provider" : 
+			[
+				"ReLU_28"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"vgg0_pool4_fwd"
+			],
+			"consumer_num" : 1,
+			"index" : 30,
+			"name" : "ReLU_30",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				512,
+				14,
+				14
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"vgg0_conv12_fwd"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"flatten_60"
+			],
+			"consumer_num" : 1,
+			"index" : 31,
+			"name" : "vgg0_pool4_fwd",
+			"operation" : "OP_POOL",
+			"output_dim" : 
+			[
+				1,
+				512,
+				7,
+				7
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"kernel_h" : 2,
+				"kernel_w" : 2,
+				"pad_h0" : 0,
+				"pad_h1" : 0,
+				"pad_w0" : 0,
+				"pad_w1" : 0,
+				"pool_method" : 0,
+				"stride_h" : 2,
+				"stride_w" : 2
+			},
+			"provider" : 
+			[
+				"ReLU_30"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"vgg0_dense0_fwd"
+			],
+			"consumer_num" : 1,
+			"index" : 32,
+			"name" : "flatten_60",
+			"operation" : "OP_FLATTEN",
+			"output_dim" : 
+			[
+				1,
+				25088,
+				1,
+				1
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"axis" : 1,
+				"end_axis" : 3
+			},
+			"provider" : 
+			[
+				"vgg0_pool4_fwd"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : 
+			[
+				"vgg0_dense0_relu_fwd"
+			],
+			"consumer_num" : 1,
+			"index" : 33,
+			"name" : "vgg0_dense0_fwd",
+			"operation" : "OP_FC",
+			"output_dim" : 
+			[
+				1,
+				4096,
+				1,
+				1
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"num_input" : 25088,
+				"num_output" : 4096
+			},
+			"provider" : 
+			[
+				"flatten_60"
+			],
+			"provider_num" : 1
+		},
+		{
+			"bitwidth" : 16,
+			"consumer" : [],
+			"consumer_num" : 0,
+			"index" : 34,
+			"name" : "vgg0_dense0_relu_fwd",
+			"operation" : "OP_RELU",
+			"output_dim" : 
+			[
+				1,
+				4096,
+				1,
+				1
+			],
+			"output_dim_num" : 4,
+			"param" : 
+			{
+				"negative_slope" : 0.0
+			},
+			"provider" : 
+			[
+				"vgg0_dense0_fwd"
+			],
+			"provider_num" : 1
+		}
+	]
+}
