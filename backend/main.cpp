@@ -123,7 +123,6 @@ int main()
 //    }
 
     std::string model_name = Models[12];
-
     PIMCOM(model_name);
 
 //    Json::Reader jsonReader;
