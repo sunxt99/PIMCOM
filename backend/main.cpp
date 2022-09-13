@@ -122,7 +122,7 @@ int main()
 //        std::cout << "************************" << std::endl;
 //    }
 
-    std::string model_name = Models[12];
+    std::string model_name = Models[11];
     PIMCOM(model_name);
 
 //    Json::Reader jsonReader;

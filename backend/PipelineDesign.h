@@ -21,6 +21,7 @@ private:
     void GetAugmentedNodeList(Json::Value & DNNInfo);
     void RefineAugmentedNodeList(Json::Value & DNNInfo, int node_index, int level_index, int AG0_core_index, int AG0_index_in_total, int AG0_node_index);
     void GetConcatMaxLevelForInception();
+    void GetPoolInfo(Json::Value & DNInfo);
 };
 
 

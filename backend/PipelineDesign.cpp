@@ -13,6 +13,7 @@ void PipelineDesign::DesignPipeline(Json::Value & DNNInfo)
     ClassifyTheNode(0, 0, 0);
     GetAugmentedNodeList(DNNInfo);
     RefineAugmentedNodeList(DNNInfo, 0, 0, 0, 0, 0);
+    GetPoolInfo(DNNInfo);
     DNNInfo["5_node_list_augmented"] = NodeList;
 }
 
@@ -182,7 +183,131 @@ void PipelineDesign::RefineAugmentedNodeList(Json::Value &DNNInfo, int node_inde
     }
 }
 
+//void PipelineDesign::GetPoolInfo(Json::Value &DNInfo)
+//{
+//    int input_W = 6;
+//    int input_H = 6;
+//    int pool_kernel_w = 2;
+//    int pool_kernel_h = 2;
+//    int pool_padding_h0 = 0;
+//    int pool_padding_h1 = 0;
+//    int pool_padding_w0 = 0;
+//    int pool_padding_w1 = 0;
+//    int pool_stride_w = 2;
+//    int pool_stride_h = 2;
+//    int output_W = floor(float(input_W + pool_padding_w0 + pool_padding_w1 - pool_kernel_w) / float(pool_stride_w)) + 1;
+//    int output_H = floor(float(input_H + pool_padding_h0 + pool_padding_h1 - pool_kernel_h) / float(pool_stride_h)) + 1;
+//    int output_index = 0;
+//    for (int i = 0; i < output_H; ++i)
+//    {
+//        for (int j = 0; j < output_W; ++j)
+//        {
+//            std::cout << output_index << std::endl;
+//            int start_address = i * pool_stride_h * input_W + j *  pool_stride_w;
+//            if (i != 0)
+//                start_address -= pool_padding_h0 * input_W;
+//            if (j != 0)
+//                start_address -= pool_padding_w0;
+//            int start_row = start_address / input_W;
+//            int start_col = start_address % input_W;
+//
+//            int pool_h_num = pool_kernel_h;
+//            if (i == 0)
+//                pool_h_num -= pool_padding_h0;
+//            else if (i == output_H-1)
+//                if (start_row + pool_kernel_h > input_H)
+//                    pool_h_num -= pool_padding_h1;
+//
+//            int pool_w_num = pool_kernel_w;
+//            if (j == 0)
+//                pool_w_num -= pool_padding_w0;
+//            else if (j == output_W-1)
+//                if (start_col + pool_kernel_w > input_W)
+//                    pool_w_num -= pool_padding_w1;
+//
+//            for (int h = 0; h < pool_h_num ; ++h)
+//            {
+//                for (int w = 0; w < pool_w_num; ++w)
+//                {
+//                    int position = start_address + w + h * input_W;
+//                    std::cout << "  " << position ;
+//                }
+//            }
+//            output_index += 1;
+//            std::cout << std::endl;
+//        }
+//    }
+//}
 
+void PipelineDesign::GetPoolInfo(Json::Value &DNNInfo)
+{
+    for (int n = 0; n < node_num; ++n)
+    {
+        Json::Value Node = NodeList[n];
+        if (strcmp(Node["operation"].asCString(), "OP_POOL") != 0)
+            continue;
+        Json::Value Params = Node["param"];
+        int input_H = Node["input_dim"][2].asInt();
+        int input_W = Node["input_dim"][3].asInt();
+        int pool_kernel_w = Params["kernel_w"].asInt();
+        int pool_kernel_h = Params["kernel_h"].asInt();
+        int pool_padding_h0 = Params["pad_h0"].asInt();
+        int pool_padding_h1 = Params["pad_h1"].asInt();
+        int pool_padding_w0 = Params["pad_w0"].asInt();
+        int pool_padding_w1 = Params["pad_w1"].asInt();
+        int pool_stride_w = Params["stride_w"].asInt();
+        int pool_stride_h = Params["stride_h"].asInt();
+
+        int output_W = floor(float(input_W + pool_padding_w0 + pool_padding_w1 - pool_kernel_w) / float(pool_stride_w)) + 1;
+        int output_H = floor(float(input_H + pool_padding_h0 + pool_padding_h1 - pool_kernel_h) / float(pool_stride_h)) + 1;
+        int info_output_W = Node["output_dim"][3].asInt();
+        int info_output_H = Node["output_dim"][2].asInt();
+        if (info_output_W != output_W || info_output_H != output_H)
+        {
+            std::cout << " Output Size Doesn't Match" << std::endl;
+            return;
+        }
+        NodeList[n]["pool_info"]["input_index"].resize(output_W * output_H);
+        int output_index = 0;
+        for (int i = 0; i < output_H; ++i)
+        {
+            for (int j = 0; j < output_W; ++j)
+            {
+                int start_address = i * pool_stride_h * input_W + j *  pool_stride_w;
+                if (i != 0)
+                    start_address -= pool_padding_h0 * input_W;
+                if (j != 0)
+                    start_address -= pool_padding_w0;
+                int start_row = start_address / input_W;
+                int start_col = start_address % input_W;
+
+                int pool_h_num = pool_kernel_h;
+                if (i == 0)
+                    pool_h_num -= pool_padding_h0;
+                else if (i == output_H-1)
+                    if (start_row + pool_kernel_h > input_H)
+                        pool_h_num -= pool_padding_h1;
+
+                int pool_w_num = pool_kernel_w;
+                if (j == 0)
+                    pool_w_num -= pool_padding_w0;
+                else if (j == output_W-1)
+                    if (start_col + pool_kernel_w > input_W)
+                        pool_w_num -= pool_padding_w1;
+
+                for (int h = 0; h < pool_h_num ; ++h)
+                {
+                    for (int w = 0; w < pool_w_num; ++w)
+                    {
+                        int position = start_address + w + h * input_W;
+                        NodeList[n]["pool_info"]["input_index"][position].append(output_index);
+                    }
+                }
+                output_index += 1;
+            }
+        }
+    }
+}
 
 void PipelineDesign::ShowClassificationInfo(Json::Value &DNNInfo)
 {
