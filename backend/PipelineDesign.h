@@ -14,6 +14,7 @@ public:
     void DesignPipeline(Json::Value & DNNInfo);
     void SaveJsonIR(Json::Value & DNNInfo, std::string ModelName);
     void ShowClassificationInfo(Json::Value & DNNInfo);
+    void ShowWaitToActInfo(Json::Value & DNNInfo);
 private:
     Json::Value NodeList;
     int node_num;

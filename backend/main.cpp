@@ -86,12 +86,13 @@ void PIMCOM(const std::string model_name)
     ep.SaveJsonIR(DNNInfo, model_name);
     PipelineDesign pd;
     pd.DesignPipeline(DNNInfo);
+    pd.ShowWaitToActInfo(DNNInfo);
     pd.SaveJsonIR(DNNInfo, model_name);
 //    pd.ShowClassificationInfo(DNNInfo);
-    ExecutionSchedule es;
-    es.ScheduleExecution(DNNInfo);
-    es.SaveJsonIR(DNNInfo, model_name);
-    es.ScheduleShowInstruction(DNNInfo);
+//    ExecutionSchedule es;
+//    es.ScheduleExecution(DNNInfo);
+//    es.SaveJsonIR(DNNInfo, model_name);
+//    es.ScheduleShowInstruction(DNNInfo);
 //    DetailAppend da;
 //    da.AppendDetail(DNNInfo);
 //    da.SaveJsonIR(DNNInfo, model_name);
