@@ -6,7 +6,7 @@
 #define PIMCOM_CROSSBARPARTITION_H
 
 #include "common.h"
-#include "configure.h"
+#include "../configure.h"
 
 class CrossbarPartition {
 public:

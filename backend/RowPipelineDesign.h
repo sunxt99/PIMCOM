@@ -4,8 +4,8 @@
 
 #ifndef PIMCOM_ROWPIPELINEDESIGN_H
 #define PIMCOM_ROWPIPELINEDESIGN_H
-#include "configure.h"
 #include "common.h"
+#include "../configure.h"
 
 class RowPipelineDesign {
 public:

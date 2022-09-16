@@ -4,9 +4,9 @@
 
 #ifndef PIMCOM_ELEMENTPIPELINEDESIGN_H
 #define PIMCOM_ELEMENTPIPELINEDESIGN_H
-#include "configure.h"
-#include "common.h"
 
+#include "common.h"
+#include "../configure.h"
 
 class ElementPipelineDesign {
 public:

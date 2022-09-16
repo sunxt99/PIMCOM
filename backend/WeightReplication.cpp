@@ -5,7 +5,8 @@
 #include "WeightReplication.h"
 
 static int pre_replication_num[20] = {2,3,1};
-//static int pre_replication_num[20] = {6};
+//static int pre_replication_num[20] = {0,1,1};
+//static int pre_replication_num[20] = {2,3,0};
 
 void WeightReplication::ReplicateWeight(Json::Value& DNNInfo)
 {
@@ -32,7 +33,7 @@ void WeightReplication::ReplicateRandomly(Json::Value& DNNInfo)
             // 固定倍数
 //            DNNInfo["node_list"][i]["replication_num"] = 2;
             // 指定倍数 [2, 3, 1]
-//            DNNInfo["node_list"][i]["replication_num"] = pre_replication_num[I++];
+            DNNInfo["node_list"][i]["replication_num"] = pre_replication_num[I++];
         }
         else if (strcmp(Node["operation"].asCString(),"OP_FC") == 0)
             DNNInfo["node_list"][i]["replication_num"] = 1;

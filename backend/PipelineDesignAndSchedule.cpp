@@ -17,7 +17,7 @@ void PipelineDesignAndSchedule::DesignAndSchedule(Json::Value & DNNInfo, std::st
             InferencePipelineSchedule schedule;
             schedule.ScheduleExecution(DNNInfo);
             schedule.SaveJsonIR(DNNInfo, model_name);
-//            schedule.ScheduleShowInstruction(DNNInfo);
+            schedule.ScheduleShowInstruction(DNNInfo);
             break;
         }
         case Row:

@@ -4,8 +4,9 @@
 
 #ifndef PIMCOM_HIERARCHYMAPPING_H
 #define PIMCOM_HIERARCHYMAPPING_H
-#include "configure.h"
+
 #include "common.h"
+#include "../configure.h"
 
 class HierarchyMapping
 {

@@ -5,8 +5,8 @@
 #ifndef PIMCOM_INFERENCEPIPELINESCHEDULE_H
 #define PIMCOM_INFERENCEPIPELINESCHEDULE_H
 
-#include "configure.h"
 #include "common.h"
+#include "../configure.h"
 
 class InferencePipelineSchedule
 {

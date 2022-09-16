@@ -4,8 +4,10 @@
 
 #ifndef PIMCOM_WEIGHTREPLICATION_H
 #define PIMCOM_WEIGHTREPLICATION_H
+
 #include "common.h"
 #include <random>
+#include "../configure.h"
 
 class WeightReplication
 {

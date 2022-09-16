@@ -14,7 +14,7 @@ void RowPipelineDesign::DesignPipeline(Json::Value &DNNInfo)
     GetStartPosition(DNNInfo);
     GetRecvStartInfo(DNNInfo);
     TryRowPipeline2(DNNInfo);
-//    ShowRecvStartInfo(DNNInfo);
+    ShowRecvStartInfo(DNNInfo);
     DNNInfo["5_node_list_augmented"] = NodeList;
 }
 
@@ -167,7 +167,7 @@ void RowPipelineDesign::TryRowPipeline1()
 void RowPipelineDesign::TryRowPipeline2(Json::Value & DNNInfo)
 {
     int period_num = 50;
-    int inference_num = 3;
+    int inference_num = 1;
     int processed_start_log[MAX_NODE] = {0};
     int processed_recv_log[MAX_NODE] = {0};
     int start_log[MAX_NODE] = {0};
@@ -335,9 +335,15 @@ void RowPipelineDesign::GetRecvStartInfo(Json::Value &DNNInfo)
             for (int j = 0; j < output_h; ++j)
             {
                 int start_position = NodeList[node_index]["start_position"]["output_row_index"][j].asInt();
-                int start_timestamp = DNNInfo["5_recv_info"][i][start_position].asInt() + 1;
-                if (j != 0 && start_timestamp == DNNInfo["5_start_info"][i][j-1].asInt())
-                    start_timestamp += 1;
+                int start_timestamp;
+                if (j != 0 && start_position == NodeList[node_index]["start_position"]["output_row_index"][j-1].asInt()) // 如果两个start_position一样的情况
+                {
+                    start_timestamp = DNNInfo["5_start_info"][i][j-1].asInt() + 1;
+                }
+                else
+                {
+                    start_timestamp = DNNInfo["5_recv_info"][i][start_position].asInt() + 1;
+                }
                 DNNInfo["5_start_info"][i].append(start_timestamp);
             }
         }

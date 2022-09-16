@@ -5,8 +5,9 @@
 #ifndef PIMCOM_DETAILAPPEND_H
 #define PIMCOM_DETAILAPPEND_H
 
-#include "configure.h"
 #include "common.h"
+#include <ctime>
+#include "../configure.h"
 
 class DetailAppend
 {

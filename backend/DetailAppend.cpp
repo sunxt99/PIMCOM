@@ -13,8 +13,13 @@ void DetailAppend::AppendDetail(Json::Value &DNNInfo)
 {
     instruction_group_num = static_cast<int>(DNNInfo["6_core_instruction_ir"].size());
     core_num = static_cast<int>(DNNInfo["6_physical_core_AG_map"]["core_list"].size());
+    clock_t start_time = clock();
     PreProcess(DNNInfo);
+    clock_t end_time_1 = clock();
     PrepareForInput(DNNInfo);
+    clock_t end_time_2 = clock();
+    std::cout << double(end_time_1 - start_time) / CLOCKS_PER_SEC << "s" << std::endl;
+    std::cout << double(end_time_2 - start_time) / CLOCKS_PER_SEC << "s" << std::endl;
 }
 
 void DetailAppend::PreProcess(Json::Value &DNNInfo)
@@ -44,25 +49,21 @@ void DetailAppend::PrepareForInput(Json::Value &DNNInfo)
 {
     for (int i = 0; i < instruction_group_num; ++i)
     {
+        Json::Value InstructionGroup = DNNInfo["6_core_instruction_ir"][i];
         for (int j = 0; j < core_num; ++j)
         {
-            Json::Value InstructionIrList = DNNInfo["6_core_instruction_ir"][i]["core_list"][j]["instruction_ir_list"];
+            Json::Value InstructionIrList = InstructionGroup["core_list"][j]["instruction_ir_list"];
             int instruction_ir_num = static_cast<int>(InstructionIrList.size());
             for (int k = 0; k < instruction_ir_num; ++k)
             {
-
                 Json::Value tmpInstruction = InstructionIrList[k];
 
                 int node_index = tmpInstruction["node_index"].asInt();
                 int AG_index_in_replication = tmpInstruction["AG_index_in_replication"].asInt();
                 int AG_index_in_total = tmpInstruction["AG_index_in_total"].asInt();
-                int AG_num_per_replication = tmpInstruction["AG_num_per_replication"].asInt();
                 int input_cycle_index = tmpInstruction["input_cycle_index"].asInt();
-                int input_cycle_in_total = tmpInstruction["input_cycle_in_total"].asInt();
                 int input_element_num = tmpInstruction["input_element_num"].asInt();
-                int output_element_num = tmpInstruction["output_element_num"].asInt();
                 int replication_index = tmpInstruction["replication_index"].asInt();
-                int replication_num = tmpInstruction["replication_num"].asInt();
 
                 Json::Value Node = DNNInfo["node_list"][node_index];
 
@@ -198,7 +199,9 @@ void DetailAppend::PrepareForInput(Json::Value &DNNInfo)
                     DNNInfo["7_fc_input_info"]["node_list"][node_index]["core_list"][j]["element_num"].append(move_vector_size);
                 }
                 else
+                {
                     DNNInfo["7_detailed_instruction_ir"]["1_prepare_for_input"]["instruction_group"][i]["core_list"][j]["instruction_ir_list"].append(tmpInstruction);
+                }
             }
         }
     }
@@ -277,6 +280,55 @@ void DetailAppend::ShowDetailedInstruction(Json::Value & DNNInfo)
                               << " offset:" << Instruction["offset"]["value"]
                               << " rlength:" << Instruction["relative_length"]
                               << " element_num:" << Instruction["element_num"] << std::endl;
+                else if (strcmp(Operation.c_str(), "ReLU") == 0)
+                    std::cout << "    <" << Operation << ">"
+                              << " rs:" << Instruction["source"]
+                              << " rd:" << Instruction["destination"]
+                              << " offset:" << Instruction["offset"]["value"]
+                              << " rlength:" << Instruction["relative_length"]
+                              << " element_num:" << Instruction["element_num"] << std::endl;
+                else if (strcmp(Operation.c_str(), "ELTWISE") == 0)
+                    std::cout << "      【" << Operation << "-" << Instruction["operation_type"].asCString() << "】"
+                              << " rs1:" << Instruction["source_1"]
+                              << " rs2:" << Instruction["source_2"]
+                              << " rd:" << Instruction["destination"]
+                              << " copy_offset:" << Instruction["copy_offset_flag"]
+                              << " element_num:" << Instruction["element_num"]
+                              << std::endl;
+                else if (strcmp(Operation.c_str(), "CONCAT") == 0)
+                    std::cout << "      【" << Operation << "-" << Instruction["operation_type"].asCString() << "】"
+                              << " rs:" << Instruction["source"]
+                              << " rd:" << Instruction["destination"]
+                              << " rs_offset:" << Instruction["rs_offset"]
+                              << " rd_offset:" << Instruction["rd_offset"]
+                              << " input_cycle:" << Instruction["input_cycle"]
+                              << " copy_offset:" << Instruction["copy_offset_flag"]
+                              << " element_num:" << Instruction["element_num"]
+                              << std::endl;
+                else if (strcmp(Operation.c_str(), "POOL") == 0 && strcmp(Instruction["operation_type"].asCString(), "VVMAX") == 0)
+                    std::cout << "      【" << Operation << "-" << Instruction["operation_type"].asCString() << "】"
+                               << " rs1:" << Instruction["source_1"]
+                              << " rs2:" << Instruction["source_2"]
+                              << " rd:" << Instruction["destination"]
+                              << " input_index:"  << Instruction["input_index"]
+                              << " output_index:"  << Instruction["output_index"]
+                              << " rs1_offset:"  << Instruction["rs1_offset"]
+                              << " rs2_offset:"  << Instruction["input_element_in_total"] << "+"  <<  Instruction["rs2_offset_in_output"]
+                              << " rd_offset:"  << Instruction["input_element_in_total"] << "+"  << Instruction["rs2_offset_in_output"]
+                              << " copy_offset:" << Instruction["copy_offset_flag"]
+                              << " element_num:" << Instruction["element_num"]
+                              << std::endl;
+                else if (strcmp(Operation.c_str(), "POOL") == 0 && strcmp(Instruction["operation_type"].asCString(), "VM") == 0)
+                    std::cout << "      【" << Operation << "-" << Instruction["operation_type"].asCString() << "】"
+                               << " rs:" << Instruction["source"]
+                              << " rd:" << Instruction["destination"]
+                              << " input_index:"  << Instruction["input_index"]
+                              << " output_index:"  << Instruction["output_index"]
+                              << " rs_offset:"  << Instruction["rs_offset"]
+                              << " rd_offset:"  << Instruction["input_element_in_total"] << "+"  << Instruction["rd_offset_in_output"]
+                              << " copy_offset:" << Instruction["copy_offset_flag"]
+                              << " element_num:" << Instruction["element_num"]
+                              << std::endl;
                 else
                     std::cout << "    " << Operation << std::endl;
             }

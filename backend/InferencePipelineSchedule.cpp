@@ -281,6 +281,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage2(Json::Value &  DNNInfo, int 
 
 void InferencePipelineSchedule::ScheduleNaiveStage3(Json::Value &  DNNInfo, int instruction_group_index)
 {
+    int comm_index = 0;
     //// 结果发送与融合
     for (int i = 0; i < core_num; ++i)
     {
@@ -320,6 +321,8 @@ void InferencePipelineSchedule::ScheduleNaiveStage3(Json::Value &  DNNInfo, int 
                     Instruction_send["instruction_group_index"] = instruction_group_index;
                     Instruction_send["AGP"] = CoreList[i]["AG_list"][j]["AGP"].asInt();
                     Instruction_send["agp_index"] = CoreList[i]["AG_list"][j]["agp_index"].asInt();
+                    Instruction_send["comm_index"] = comm_index;
+                    Instruction_send["instruction_index_in_core"] = DNNInfo["6_core_instruction_ir"][instruction_group_index]["core_list"][i]["instruction_ir_list"].size();
                     DNNInfo["6_core_instruction_ir"][instruction_group_index]["core_list"][i]["instruction_ir_list"].append(Instruction_send);
 
                     Json::Value Instruction_recv;
@@ -333,6 +336,8 @@ void InferencePipelineSchedule::ScheduleNaiveStage3(Json::Value &  DNNInfo, int 
                     Instruction_recv["instruction_group_index"] = instruction_group_index;
                     Instruction_recv["AGP"] = CoreList[i]["AG_list"][j]["AGP"].asInt();
                     Instruction_recv["agp_index"] = CoreList[i]["AG_list"][j]["agp_index"].asInt();
+                    Instruction_recv["comm_index"] = comm_index;
+                    Instruction_recv["instruction_index_in_core"] = DNNInfo["6_core_instruction_ir"][instruction_group_index]["core_list"][RecvCore]["instruction_ir_list"].size();
                     DNNInfo["6_core_instruction_ir"][instruction_group_index]["core_list"][RecvCore]["instruction_ir_list"].append(Instruction_recv);
 
                     Json::Value Instruction_vadd;
@@ -364,6 +369,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage3(Json::Value &  DNNInfo, int 
                     Instruction_vadd["instruction_group_index"] = instruction_group_index;
                     DNNInfo["6_core_instruction_ir"][instruction_group_index]["core_list"][RecvCore]["instruction_ir_list"].append(Instruction_vadd);
 
+                    comm_index++;
                     // 因为之前经过了信息融合，所以不需要多次发送接收。跳过后面同一Rep的其他AG。
                     while (j < AG_num && CoreList[i]["AG_list"][j]["replication_index"].asInt() == replication_index)
                     {
@@ -576,53 +582,53 @@ void InferencePipelineSchedule::ScheduleNaiveStage5(Json::Value & DNNInfo, int o
                         int provider_index = NodeList[consumer_index]["provider_index"][j].asInt();
                         int provider_AG0_index = NodeList[provider_index]["AG0_index_in_total"].asInt();
                         int effective_provider_index = NodeList[provider_index]["AG0_node_index"].asInt();
-                        Json::Value Instruction;
-                        Instruction["operation"] = "CONCAT";
-                        Instruction["operation_type"] = "VM";
-                        Instruction["node_index"] = consumer_index;
-                        Instruction["source"] = NodeList[provider_index]["AG0_index_in_total"];
-                        Instruction["destination"] = AG0_index_in_total;
-//                        Instruction["relative_length"] = node_offset_inference[provider_AG0_index];  // 未考虑重复块
-                        Instruction["relative_length"] = DNNInfo["6_input_cycle_record"][effective_provider_index].size();
-                        Instruction["element_num"] = Instruction["relative_length"].asInt() * AG_output_element_size[provider_AG0_index];
-                        Instruction["copy_offset_flag"] = NodeList[consumer_index]["copy_offset_flag"];
-                        int real_instruction_group_index = (node_offset_inference[AG0_index_in_total]-1)/operation_cycle_before_comm;
-                        DNNInfo["6_core_instruction_ir"][real_instruction_group_index]["core_list"][AG0_core_index]["instruction_ir_list"].append(Instruction);
+//                        Json::Value Instruction;
+//                        Instruction["operation"] = "CONCAT";
+//                        Instruction["operation_type"] = "VM";
+//                        Instruction["node_index"] = consumer_index;
+//                        Instruction["source"] = NodeList[provider_index]["AG0_index_in_total"];
+//                        Instruction["destination"] = AG0_index_in_total;
+////                        Instruction["relative_length"] = node_offset_inference[provider_AG0_index];  // 未考虑重复块
+//                        Instruction["relative_length"] = DNNInfo["6_input_cycle_record"][effective_provider_index].size();
+//                        Instruction["element_num"] = Instruction["relative_length"].asInt() * AG_output_element_size[provider_AG0_index];
+//                        Instruction["copy_offset_flag"] = NodeList[consumer_index]["copy_offset_flag"];
+//                        int real_instruction_group_index = (node_offset_inference[AG0_index_in_total]-1)/operation_cycle_before_comm;
+//                        DNNInfo["6_core_instruction_ir"][real_instruction_group_index]["core_list"][AG0_core_index]["instruction_ir_list"].append(Instruction);
                         // 下面这个代码是将CONCAT代码展开来，即具体形式。
-//                        {
-//                            // 这个output_channel_num是完整的
-//                            // int output_channel_num = NodeList[provider_index]["output_dim"][2].asInt() * NodeList[provider_index]["output_dim"][3].asInt(); // H*W
-//                            // 这个output_channel_num不完全
-//                            // int output_channel_num = node_offset_inference[provider_AG0_index];
-//                            // 这个output_channel_num是可行的
-//                            int output_channel_num = DNNInfo["6_input_cycle_record"][effective_provider_index].size();
-//                            int output_channel_element_size = NodeList[provider_index]["output_dim"][1].asInt();
-//                            if (j != 0)
-//                            {
-//                                int last_provider_index = NodeList[consumer_index]["provider_index"][j-1].asInt();
-//                                accumulated_offset += NodeList[last_provider_index]["output_dim"][1].asInt();;
-//                            }
-//                            for (int k = 0; k < output_channel_num; ++k)
-//                            {
-//                                int input_cycle = DNNInfo["6_input_cycle_record"][effective_provider_index][k].asInt();
-//                                int rs_offset = input_cycle * output_channel_element_size;
-//                                int rd_offset = input_cycle * output_channel_element_size_concat + accumulated_offset;
-//                                Json::Value Instruction_detail;
-//                                Instruction_detail["input_cycle"] = input_cycle;
-//                                Instruction_detail["operation"] = "CONCAT";
-//                                Instruction_detail["operation_type"] = "VM-detail";
-//                                Instruction_detail["node_index"] = consumer_index;
-//                                Instruction_detail["source"] = NodeList[provider_index]["AG0_index_in_total"];
-//                                Instruction_detail["destination"] = AG0_index_in_total;
-//                                Instruction_detail["rs_offset"] = rs_offset;
-//                                Instruction_detail["rd_offset"] = rd_offset;
-//                                Instruction_detail["relative_length"] = 1;
-//                                Instruction_detail["element_num"] = Instruction_detail["relative_length"].asInt() * AG_output_element_size[provider_AG0_index];
-//                                Instruction_detail["copy_offset_flag"] = NodeList[consumer_index]["copy_offset_flag"];
-//                                int real_instruction_group_index_detail = (node_offset_inference[AG0_index_in_total]-1)/operation_cycle_before_comm;
-//                                DNNInfo["6_core_instruction_ir"][real_instruction_group_index_detail]["core_list"][AG0_core_index]["instruction_ir_list"].append(Instruction_detail);
-//                            }
-//                        }
+                        {
+                            // 这个output_channel_num是完整的
+                            // int output_channel_num = NodeList[provider_index]["output_dim"][2].asInt() * NodeList[provider_index]["output_dim"][3].asInt(); // H*W
+                            // 这个output_channel_num不完全
+                            // int output_channel_num = node_offset_inference[provider_AG0_index];
+                            // 这个output_channel_num是可行的
+                            int output_channel_num = DNNInfo["6_input_cycle_record"][effective_provider_index].size();
+                            int output_channel_element_size = NodeList[provider_index]["output_dim"][1].asInt();
+                            if (j != 0)
+                            {
+                                int last_provider_index = NodeList[consumer_index]["provider_index"][j-1].asInt();
+                                accumulated_offset += NodeList[last_provider_index]["output_dim"][1].asInt();;
+                            }
+                            for (int k = 0; k < output_channel_num; ++k)
+                            {
+                                int input_cycle = DNNInfo["6_input_cycle_record"][effective_provider_index][k].asInt();
+                                int rs_offset = input_cycle * output_channel_element_size;
+                                int rd_offset = input_cycle * output_channel_element_size_concat + accumulated_offset;
+                                Json::Value Instruction_detail;
+                                Instruction_detail["input_cycle"] = input_cycle;
+                                Instruction_detail["operation"] = "CONCAT";
+                                Instruction_detail["operation_type"] = "VM-detail";
+                                Instruction_detail["node_index"] = consumer_index;
+                                Instruction_detail["source"] = NodeList[provider_index]["AG0_index_in_total"];
+                                Instruction_detail["destination"] = AG0_index_in_total;
+                                Instruction_detail["rs_offset"] = rs_offset;
+                                Instruction_detail["rd_offset"] = rd_offset;
+                                Instruction_detail["relative_length"] = 1;
+                                Instruction_detail["element_num"] = Instruction_detail["relative_length"].asInt() * AG_output_element_size[provider_AG0_index];
+                                Instruction_detail["copy_offset_flag"] = NodeList[consumer_index]["copy_offset_flag"];
+                                int real_instruction_group_index_detail = (node_offset_inference[AG0_index_in_total]-1)/operation_cycle_before_comm;
+                                DNNInfo["6_core_instruction_ir"][real_instruction_group_index_detail]["core_list"][AG0_core_index]["instruction_ir_list"].append(Instruction_detail);
+                            }
+                        }
                     }
                 }
                 else if (strcmp(consumer_op.c_str(), "OP_RELU") == 0 || strcmp(consumer_op.c_str(), "OP_TANH") == 0 || strcmp(consumer_op.c_str(), "OP_SIGMOID") == 0)
@@ -644,55 +650,55 @@ void InferencePipelineSchedule::ScheduleNaiveStage5(Json::Value & DNNInfo, int o
                         DNNInfo["6_core_instruction_ir"][real_instruction_group_index]["core_list"][AG0_core_index]["instruction_ir_list"].append(Instruction);
                     }
                 }
-//                else if (strcmp(consumer_op.c_str(), "OP_POOL") == 0)
-//                {
-//                    bool output_visit_flag[100000];
-//                    int effective_provider_index = NodeList[node_index]["AG0_node_index"].asInt();
-//                    int ready_input_num = DNNInfo["6_input_cycle_record"][effective_provider_index].size(); // the input of pool
-//                    int input_element_in_total = NodeList[consumer_index]["input_dim"][1].asInt() * NodeList[consumer_index]["input_dim"][2].asInt() * NodeList[consumer_index]["input_dim"][3].asInt();
-//                    Json::Value PoolInfo = NodeList[consumer_index]["pool_info"]["input_index"];
-//                    for (int j = 0; j < ready_input_num; ++j)
-//                    {
-//                        int input_index = DNNInfo["6_input_cycle_record"][effective_provider_index][j].asInt();
-//                        int associated_output_num = PoolInfo[input_index].size();
-//                        for (int k = 0; k < associated_output_num; ++k)
-//                        {
-//                            int output_index = PoolInfo[input_index][k].asInt();
-//                            Json::Value Instruction;
-//                            Instruction["operation"] = "POOL";
-//                            Instruction["input_index"] = input_index;
-//                            Instruction["output_index"] = output_index;
-//                            Instruction["node_index"] = consumer_index;
-//                            Instruction["relative_length"] = 1;
-//                            Instruction["element_num"] = Instruction["relative_length"].asInt() * AG_output_element_size[AG0_index_in_total];
-//                            Instruction["input_element_in_total"] = input_element_in_total;
-//                            Instruction["copy_offset_flag"] = NodeList[consumer_index]["copy_offset_flag"];
-//                            if (output_visit_flag[output_index] == 0) // 如果提前没有访问过，就先把输入向量搬运过去。
-//                            {
-//                                output_visit_flag[output_index] = 1;
-//                                Instruction["operation_type"] = "VM";
-//                                Instruction["source"] = AG0_index_in_total;
-//                                Instruction["destination"] = AG0_index_in_total;
-//                                Instruction["rs_offset"] = input_index * Instruction["element_num"].asInt();
-//                                Instruction["rd_offset_in_output"] = output_index * Instruction["element_num"].asInt();
-//                                Instruction["rd_offset"] = input_element_in_total + Instruction["rd_offset_in_output"].asInt();
-//                            }
-//                            else
-//                            {
-//                                Instruction["operation_type"] = "VVMAX";
-//                                Instruction["source_1"] = AG0_index_in_total;
-//                                Instruction["source_2"] = AG0_index_in_total;
-//                                Instruction["destination"] = AG0_index_in_total;
-//                                Instruction["rs1_offset"] = input_index * Instruction["element_num"].asInt();
-//                                Instruction["rs2_offset_in_output"] = output_index * Instruction["element_num"].asInt();
-//                                Instruction["rs2_offset"] = input_element_in_total + Instruction["rs_offset_in_output"].asInt();
-//                                Instruction["rd_offset"] = Instruction["rs2_offset"];
-//                            }
-//                            int real_instruction_group_index = (node_offset_inference[AG0_index_in_total] - 1) / operation_cycle_before_comm;
-//                            DNNInfo["6_core_instruction_ir"][real_instruction_group_index]["core_list"][AG0_core_index]["instruction_ir_list"].append(Instruction);
-//                        }
-//                    }
-//                }
+                else if (strcmp(consumer_op.c_str(), "OP_POOL") == 0)
+                {
+                    bool output_visit_flag[100000];
+                    int effective_provider_index = NodeList[node_index]["AG0_node_index"].asInt();
+                    int ready_input_num = DNNInfo["6_input_cycle_record"][effective_provider_index].size(); // the input of pool
+                    int input_element_in_total = NodeList[consumer_index]["input_dim"][1].asInt() * NodeList[consumer_index]["input_dim"][2].asInt() * NodeList[consumer_index]["input_dim"][3].asInt();
+                    Json::Value PoolInfo = NodeList[consumer_index]["pool_info"]["input_index"];
+                    for (int j = 0; j < ready_input_num; ++j)
+                    {
+                        int input_index = DNNInfo["6_input_cycle_record"][effective_provider_index][j].asInt();
+                        int associated_output_num = PoolInfo[input_index].size();
+                        for (int k = 0; k < associated_output_num; ++k)
+                        {
+                            int output_index = PoolInfo[input_index][k].asInt();
+                            Json::Value Instruction;
+                            Instruction["operation"] = "POOL";
+                            Instruction["input_index"] = input_index;
+                            Instruction["output_index"] = output_index;
+                            Instruction["node_index"] = consumer_index;
+                            Instruction["relative_length"] = 1;
+                            Instruction["element_num"] = Instruction["relative_length"].asInt() * AG_output_element_size[AG0_index_in_total];
+                            Instruction["input_element_in_total"] = input_element_in_total;
+                            Instruction["copy_offset_flag"] = NodeList[consumer_index]["copy_offset_flag"];
+                            if (output_visit_flag[output_index] == 0) // 如果提前没有访问过，就先把输入向量搬运过去。
+                            {
+                                output_visit_flag[output_index] = 1;
+                                Instruction["operation_type"] = "VM";
+                                Instruction["source"] = AG0_index_in_total;
+                                Instruction["destination"] = AG0_index_in_total;
+                                Instruction["rs_offset"] = input_index * Instruction["element_num"].asInt();
+                                Instruction["rd_offset_in_output"] = output_index * Instruction["element_num"].asInt();
+                                Instruction["rd_offset"] = input_element_in_total + Instruction["rd_offset_in_output"].asInt();
+                            }
+                            else
+                            {
+                                Instruction["operation_type"] = "VVMAX";
+                                Instruction["source_1"] = AG0_index_in_total;
+                                Instruction["source_2"] = AG0_index_in_total;
+                                Instruction["destination"] = AG0_index_in_total;
+                                Instruction["rs1_offset"] = input_index * Instruction["element_num"].asInt();
+                                Instruction["rs2_offset_in_output"] = output_index * Instruction["element_num"].asInt();
+                                Instruction["rs2_offset"] = input_element_in_total + Instruction["rs_offset_in_output"].asInt();
+                                Instruction["rd_offset"] = Instruction["rs2_offset"];
+                            }
+                            int real_instruction_group_index = (node_offset_inference[AG0_index_in_total] - 1) / operation_cycle_before_comm;
+                            DNNInfo["6_core_instruction_ir"][real_instruction_group_index]["core_list"][AG0_core_index]["instruction_ir_list"].append(Instruction);
+                        }
+                    }
+                }
                 else
                 {
                     int effective_provider_index = NodeList[node_index]["AG0_node_index"].asInt();
@@ -827,8 +833,8 @@ void InferencePipelineSchedule::ScheduleNaive(Json::Value &DNNInfo)
     node_num = static_cast<int>(DNNInfo["5_node_list_augmented"].size());
     NodeList = DNNInfo["5_node_list_augmented"];
     int inference_num = 1;
-    int instruction_group_num = 2;
-    int operation_cycle_before_comm = 2;
+    int instruction_group_num = 1;
+    int operation_cycle_before_comm = 1;
     DNNInfo["6_core_instruction_ir"].resize(instruction_group_num);
 
     for (int i = 0; i < inference_num; ++i)
@@ -846,19 +852,19 @@ void InferencePipelineSchedule::ScheduleNaive(Json::Value &DNNInfo)
             ScheduleNaiveStage3(DNNInfo, j);
             for (int & n : comm_flag) {n = 0;}
             //// StageACT的作用是为每个复制块的计算结果添加激活层
-            ScheduleNaiveStageAct(DNNInfo, j);
+//            ScheduleNaiveStageAct(DNNInfo, j);
             for (int & n : activate_flag) {n = 0;}
             for (int & n : node_offset_instruction_group) {n = 0;}
             for (int l = 0; l < MAX_NODE; ++l) {node_offset_inference_old[l] = node_offset_inference[l];}
         }
-        AddSeparateLine(DNNInfo, instruction_group_num-1);
+//        AddSeparateLine(DNNInfo, instruction_group_num-1);
         //// Stage4的作用是把不同复制块的数据传到一起，以方便下一步后处理的开展。
-        ScheduleNaiveStage4(DNNInfo, operation_cycle_before_comm);
+//        ScheduleNaiveStage4(DNNInfo, operation_cycle_before_comm);
         //// mode为0的Stage6两个作用:同level节点间传输数据、产生copy_offset_flag
-        ScheduleNaiveStage6(DNNInfo, operation_cycle_before_comm, 0, 0, 0);
+//        ScheduleNaiveStage6(DNNInfo, operation_cycle_before_comm, 0, 0, 0);
         for (int & n : visit_stage6) {n = 0;}
         //// Stage5的作用是添加后处理指令
-        ScheduleNaiveStage5(DNNInfo, operation_cycle_before_comm, 0, 0);
+//        ScheduleNaiveStage5(DNNInfo, operation_cycle_before_comm, 0, 0);
         for (int & n : visit_stage5) {n = 0;}
         for (int & n : wb_flag) {n = 0;}
         //// mode为1的Stage6的作用是将本轮推理周期产生的数据进行传递，以便下一个推理周期的运行

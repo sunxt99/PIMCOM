@@ -5,8 +5,8 @@
 #ifndef PIMCOM_INFERENCEPIPELINEDESIGN_H
 #define PIMCOM_INFERENCEPIPELINEDESIGN_H
 
-#include "configure.h"
 #include "common.h"
+#include "../configure.h"
 
 class InferencePipelineDesign
 {

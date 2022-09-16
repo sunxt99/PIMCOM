@@ -4,7 +4,8 @@
 
 #ifndef PIMCOM_ROWPIPELINESCHEDULE_H
 #define PIMCOM_ROWPIPELINESCHEDULE_H
-
+#include "common.h"
+#include "../configure.h"
 
 class RowPipelineSchedule {
 

@@ -6,7 +6,7 @@
 #define PIMCOM_PIPELINEDESIGNANDSCHEDULE_H
 
 #include "common.h"
-#include "configure.h"
+#include "../configure.h"
 #include "InferencePipelineDesign.h"
 #include "InferencePipelineSchedule.h"
 #include "RowPipelineDesign.h"
