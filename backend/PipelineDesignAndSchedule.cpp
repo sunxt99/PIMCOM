@@ -23,7 +23,8 @@ void PipelineDesignAndSchedule::DesignAndSchedule(Json::Value & DNNInfo, std::st
         case Row:
         {
             RowPipelineDesign design;
-            design.TryRowPipeline();
+            design.DesignPipeline(DNNInfo);
+            design.SaveJsonIR(DNNInfo, model_name);
             break;
         }
         case Element:

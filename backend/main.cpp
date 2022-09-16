@@ -100,7 +100,7 @@ void PIMCOM(const std::string model_name)
 
 int main()
 {
-    std::string Models[13] = {"vgg16",
+    std::string Models[20] = {"vgg16",
                         "inception-v1",
                         "alexnet",
                         "resnet18",
@@ -112,7 +112,8 @@ int main()
                         "schedule2",
                         "agp_example",
                         "resnetsim",
-                        "inceptionsim"};
+                        "inceptionsim",
+                        "row"};
 
 //    for (int i = 0; i < 8; ++i)
 //    {
@@ -121,7 +122,7 @@ int main()
 //        std::cout << "************************" << std::endl;
 //    }
 
-    std::string model_name = Models[11];
+    std::string model_name = Models[13];
     PIMCOM(model_name);
 
 /*

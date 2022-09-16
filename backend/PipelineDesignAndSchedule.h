@@ -17,6 +17,8 @@ class PipelineDesignAndSchedule
 {
 public:
     void DesignAndSchedule(Json::Value & DNNInfo, std::string model_name, enum PipelineType PipelineUse);
+private:
+    void GetInputAndOutputMappingInfo(Json::Value & DNNInfo);
 };
 
 #endif //PIMCOM_PIPELINEDESIGNANDSCHEDULE_H

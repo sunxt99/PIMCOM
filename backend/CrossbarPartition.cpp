@@ -158,6 +158,7 @@ void CrossbarPartition::PartitionNaive(Json::Value &DNNInfo)
                 }
                 WeightIndex += 1;
             }
+            DNNInfo["2_effective_node"].append(i);
             DNNInfo["2_AG_partition"].append(NodePartition);
             DNNInfo["node_list"][i]["effective_node_index"] = EffectiveNodeNum;
             EffectiveNodeNum += 1;
