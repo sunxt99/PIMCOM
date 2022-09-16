@@ -1,10 +1,11 @@
 //
-// Created by SXT on 2022/9/6.
+// Created by SXT on 2022/9/16.
 //
 
-#include "PipelineDesign.h"
+#include "InferencePipelineDesign.h"
 
-void PipelineDesign::DesignPipeline(Json::Value & DNNInfo)
+
+void InferencePipelineDesign::DesignPipeline(Json::Value & DNNInfo)
 {
     NodeList = DNNInfo["node_list"];
     node_num = static_cast<int>(NodeList.size());
@@ -13,14 +14,14 @@ void PipelineDesign::DesignPipeline(Json::Value & DNNInfo)
     ClassifyTheNode(0, 0, 0);
     GetAugmentedNodeList(DNNInfo);
     RefineAugmentedNodeList(DNNInfo, 0, 0, 0, 0, 0);
-//    GetPoolInfo(DNNInfo);
+    GetPoolInfo(DNNInfo);
     DNNInfo["5_node_list_augmented"] = NodeList;
 }
 
 
 static int concat_rest_num[MAX_AG] = {0};
 static int concat_max_level[MAX_AG] = {0};
-void PipelineDesign::GetConcatMaxLevelForInception()
+void InferencePipelineDesign::GetConcatMaxLevelForInception()
 {
     for (int i = 0; i < node_num; ++i)
     {
@@ -32,7 +33,7 @@ void PipelineDesign::GetConcatMaxLevelForInception()
     }
 }
 
-void PipelineDesign::ClassifyTheNode(int node_index, int level_index, int index_in_level)
+void InferencePipelineDesign::ClassifyTheNode(int node_index, int level_index, int index_in_level)
 {
     if (node_index == 0)
     {
@@ -60,7 +61,7 @@ void PipelineDesign::ClassifyTheNode(int node_index, int level_index, int index_
             {
                 ClassifyTheNode(consumer_index, level_index+1, 0);
             }
-            // 对于inception结构进行优化
+                // 对于inception结构进行优化
             else if (strcmp(consumer_op.c_str(), "OP_CONCAT") == 0)
             {
                 if (level_index > concat_max_level[consumer_index])
@@ -80,7 +81,7 @@ void PipelineDesign::ClassifyTheNode(int node_index, int level_index, int index_
 }
 
 static int node_visited[MAX_NODE] = {0};
-void PipelineDesign::GetAugmentedNodeList(Json::Value &DNNInfo)
+void InferencePipelineDesign::GetAugmentedNodeList(Json::Value &DNNInfo)
 {
     // 根据4_physical_crossbar_placement信息，添加CONV层或FC层的AG0_core_index和AG0_index_in_total的信息
     int crossbar_num = DNNInfo["4_physical_crossbar_placement"].size();
@@ -140,7 +141,7 @@ void PipelineDesign::GetAugmentedNodeList(Json::Value &DNNInfo)
 }
 
 static int visit_refine_node_list[MAX_NODE] = {0};
-void PipelineDesign::RefineAugmentedNodeList(Json::Value &DNNInfo, int node_index, int level_index, int AG0_core_index, int AG0_index_in_total, int AG0_node_index)
+void InferencePipelineDesign::RefineAugmentedNodeList(Json::Value &DNNInfo, int node_index, int level_index, int AG0_core_index, int AG0_index_in_total, int AG0_node_index)
 {
     // 5_1的目的很单纯，就是得到那些后处理节点的AG0_core_index和AG0_index_in_total。是5_2的准备阶段。
     // 如果不先得到这些后处理节点的信息，而是在5_2中一边生成信息一边生成指令，就会出现某些节点的AG0信息还没获取到就先被使用的情况。不可以。
@@ -183,7 +184,7 @@ void PipelineDesign::RefineAugmentedNodeList(Json::Value &DNNInfo, int node_inde
     }
 }
 
-//void PipelineDesign::GetPoolInfo(Json::Value &DNInfo)
+//void InferencePipelineDesign::GetPoolInfo(Json::Value &DNInfo)
 //{
 //    int input_W = 6;
 //    int input_H = 6;
@@ -239,7 +240,7 @@ void PipelineDesign::RefineAugmentedNodeList(Json::Value &DNNInfo, int node_inde
 //    }
 //}
 
-void PipelineDesign::GetPoolInfo(Json::Value &DNNInfo)
+void InferencePipelineDesign::GetPoolInfo(Json::Value &DNNInfo)
 {
     for (int n = 0; n < node_num; ++n)
     {
@@ -310,68 +311,9 @@ void PipelineDesign::GetPoolInfo(Json::Value &DNNInfo)
 }
 
 
-void PipelineDesign::ShowWaitToActInfo(Json::Value &DNNInfo)
-{
-    for (int n = 0; n < node_num; ++n)
-    {
-        Json::Value Node = NodeList[n];
-        if (strcmp(Node["operation"].asCString(), "OP_CONV") != 0)
-            continue;
-        Json::Value Params = Node["param"];
-        int input_h = Node["input_dim"][2].asInt();
-        int input_w = Node["input_dim"][3].asInt();
-        int input_c = Node["input_dim"][1].asInt();
-        int kernel_w = Params["kernel_w"].asInt();
-        int kernel_h = Params["kernel_h"].asInt();
-        int padding_h0 = Params["pad_h0"].asInt();
-        int padding_h1 = Params["pad_h1"].asInt();
-        int padding_w0 = Params["pad_w0"].asInt();
-        int padding_w1 = Params["pad_w1"].asInt();
-        int stride_w = Params["stride_w"].asInt();
-        int stride_h = Params["stride_h"].asInt();
 
-        int output_w = floor(float(input_w + padding_w0 + padding_w1 - kernel_w) / float(stride_w)) + 1;
-        int output_h = floor(float(input_h + padding_h0 + padding_h1 - kernel_h) / float(stride_h)) + 1;
-        int info_output_w = Node["output_dim"][3].asInt();
-        int info_output_h = Node["output_dim"][2].asInt();
-        if (info_output_w != output_w || info_output_h != output_h)
-        {
-            std::cout << " Output Size Doesn't Match" << std::endl;
-            return;
-        }
-        std::cout << "input: " << input_w << " kernel:" << kernel_w << " stride:" << stride_w << " padding:" << padding_w0 << std::endl;
-        std::cout << "  " << 100* float(input_w * input_h - (input_h - kernel_h + padding_h0+ 1) * (input_w - kernel_w + padding_w0 + 1 )) / float (input_h * input_w) << "%" << std::endl;
-        int rest_input_w = input_w - (kernel_w - padding_w0 - 1);
-        int rest_input_h = input_h - (kernel_h - padding_h0 - 1);
-        int effective_input_w = (kernel_w - padding_w0 - 1);
-        int effective_input_h = (kernel_h - padding_h0 - 1);
-        int blank_element_w = rest_input_w - output_w;
-        int blank_element_h = rest_input_h - output_h;
-        if (blank_element_w < 0)  // stride = 1 and padding_w1 > 0
-        {
-            effective_input_w += rest_input_w;
-            output_w = rest_input_w;
-        }
-        else if (blank_element_w <= output_w - 1)
-            effective_input_w += rest_input_w;
-        else
-            effective_input_w += output_w + (output_w-1) * (stride_w-1);
-        if (blank_element_h < 0) // stride = 1 and padding_h1 > 0
-        {
-            effective_input_h += rest_input_h;
-            output_h = rest_input_h;
-        }
-        else if (blank_element_h <= output_h - 1)
-            effective_input_h += rest_input_h;
-        else
-            effective_input_h += output_h + (output_h-1) * (stride_h-1);
 
-        std::cout << "  " << effective_input_h << "  " << effective_input_w << "  " << output_h << "  " << output_w << std::endl;
-        std::cout << "  " << 100 * float(effective_input_w * effective_input_h - (output_w * output_h))/ float(effective_input_w * effective_input_h) << "%" << std::endl;
-    }
-}
-
-void PipelineDesign::ShowClassificationInfo(Json::Value &DNNInfo)
+void InferencePipelineDesign::ShowClassificationInfo(Json::Value &DNNInfo)
 {
     std::cout << "==================== Number Info ====================" << std::endl;
     for (int i = 0; i < node_num; ++i)
@@ -383,7 +325,7 @@ void PipelineDesign::ShowClassificationInfo(Json::Value &DNNInfo)
     }
 }
 
-void PipelineDesign::SaveJsonIR(Json::Value &DNNInfo, std::string ModelName)
+void InferencePipelineDesign::SaveJsonIR(Json::Value &DNNInfo, std::string ModelName)
 {
     std::string strJson = DNNInfo.toStyledString();
     std::ofstream fob("../ir/"+ModelName+"/5_pd.json", std::ios::trunc | std::ios::out);

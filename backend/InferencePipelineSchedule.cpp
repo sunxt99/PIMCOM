@@ -1,8 +1,8 @@
 //
-// Created by SXT on 2022/8/24.
+// Created by SXT on 2022/9/16.
 //
 
-#include "ExecutionSchedule.h"
+#include "InferencePipelineSchedule.h"
 
 static int AG_flags[MAX_AG] = {0};
 static int AG_accumulated_num[MAX_AG] = {0};
@@ -18,13 +18,13 @@ static int node_offset_inference[MAX_AG] = {0};
 static int node_offset_inference_old[MAX_AG] = {0};
 
 
-void ExecutionSchedule::ScheduleExecution(Json::Value &DNNInfo)
+void InferencePipelineSchedule::ScheduleExecution(Json::Value &DNNInfo)
 {
     SchedulePreparation(DNNInfo);
     ScheduleNaive(DNNInfo);
 }
 
-void ExecutionSchedule::SchedulePreparation(Json::Value &DNNInfo)
+void InferencePipelineSchedule::SchedulePreparation(Json::Value &DNNInfo)
 {
     //// 注意Naive写法是针对没有split_AG的情况。每个AG只有一个对应的Core
 
@@ -100,7 +100,7 @@ void ExecutionSchedule::SchedulePreparation(Json::Value &DNNInfo)
     }
 }
 
-void ExecutionSchedule::ScheduleNaiveStage1(Json::Value &  DNNInfo, int instruction_group_index, bool append_instruction)
+void InferencePipelineSchedule::ScheduleNaiveStage1(Json::Value &  DNNInfo, int instruction_group_index, bool append_instruction)
 {
     //// 首先为每个AG生成MVMUL操作
     for (int i = 0; i < core_num; ++i)
@@ -230,7 +230,7 @@ void ExecutionSchedule::ScheduleNaiveStage1(Json::Value &  DNNInfo, int instruct
     }
 }
 
-void ExecutionSchedule::ScheduleNaiveStage2(Json::Value &  DNNInfo, int instruction_group_index)
+void InferencePipelineSchedule::ScheduleNaiveStage2(Json::Value &  DNNInfo, int instruction_group_index)
 {
     //// 同一结点且同一权重块的AG之间的结果融合（VADD）
     for (int i = 0; i < core_num; ++i)
@@ -279,7 +279,7 @@ void ExecutionSchedule::ScheduleNaiveStage2(Json::Value &  DNNInfo, int instruct
     }
 }
 
-void ExecutionSchedule::ScheduleNaiveStage3(Json::Value &  DNNInfo, int instruction_group_index)
+void InferencePipelineSchedule::ScheduleNaiveStage3(Json::Value &  DNNInfo, int instruction_group_index)
 {
     //// 结果发送与融合
     for (int i = 0; i < core_num; ++i)
@@ -375,7 +375,7 @@ void ExecutionSchedule::ScheduleNaiveStage3(Json::Value &  DNNInfo, int instruct
     }
 }
 
-void ExecutionSchedule::ScheduleNaiveStageAct(Json::Value &DNNInfo, int instruction_group_index)
+void InferencePipelineSchedule::ScheduleNaiveStageAct(Json::Value &DNNInfo, int instruction_group_index)
 {
     for (int i = 0; i < core_num; ++i)
     {
@@ -406,7 +406,7 @@ void ExecutionSchedule::ScheduleNaiveStageAct(Json::Value &DNNInfo, int instruct
     }
 }
 
-void ExecutionSchedule::ScheduleNaiveStage4(Json::Value &  DNNInfo, int operation_cycle_before_comm)
+void InferencePipelineSchedule::ScheduleNaiveStage4(Json::Value &  DNNInfo, int operation_cycle_before_comm)
 {
     //// 结果传递与写回
     for (int i = 0; i < core_num; ++i)
@@ -501,7 +501,7 @@ void ExecutionSchedule::ScheduleNaiveStage4(Json::Value &  DNNInfo, int operatio
 }
 
 static int visit_stage5[MAX_NODE] = {0};
-void ExecutionSchedule::ScheduleNaiveStage5(Json::Value & DNNInfo, int operation_cycle_before_comm, int node_index, int level_index)
+void InferencePipelineSchedule::ScheduleNaiveStage5(Json::Value & DNNInfo, int operation_cycle_before_comm, int node_index, int level_index)
 {
     // 这里的NodeList都是pipeline design中得到的Augmented NodeList
     int consumer_num = NodeList[node_index]["consumer_num"].asInt();
@@ -715,7 +715,7 @@ void ExecutionSchedule::ScheduleNaiveStage5(Json::Value & DNNInfo, int operation
 }
 
 static int visit_stage6[MAX_NODE] = {0};
-void ExecutionSchedule::ScheduleNaiveStage6(Json::Value & DNNInfo, int operation_cycle_before_comm, int node_index, int level_index, int mode)
+void InferencePipelineSchedule::ScheduleNaiveStage6(Json::Value & DNNInfo, int operation_cycle_before_comm, int node_index, int level_index, int mode)
 {
     // 每次向前跳一步。所以只用检测visit_stage6[node_index]是否等于0即可。
     if (visit_stage6[node_index] != 0)
@@ -808,7 +808,7 @@ void ExecutionSchedule::ScheduleNaiveStage6(Json::Value & DNNInfo, int operation
 
 
 
-void ExecutionSchedule::AddSeparateLine(Json::Value & DNNInfo, int instruction_group_index)
+void InferencePipelineSchedule::AddSeparateLine(Json::Value & DNNInfo, int instruction_group_index)
 {
     for (int i = 0; i < core_num; ++i)
     {
@@ -819,7 +819,7 @@ void ExecutionSchedule::AddSeparateLine(Json::Value & DNNInfo, int instruction_g
 }
 
 
-void ExecutionSchedule::ScheduleNaive(Json::Value &DNNInfo)
+void InferencePipelineSchedule::ScheduleNaive(Json::Value &DNNInfo)
 {
     // TODO：未考虑是否死锁。或许会出现这种情况。
     core_num = static_cast<int>(DNNInfo["6_physical_core_AG_map"]["core_list"].size());
@@ -838,22 +838,22 @@ void ExecutionSchedule::ScheduleNaive(Json::Value &DNNInfo)
             DNNInfo["6_core_instruction_ir"][j]["core_list"].resize(core_num);
             for (int k = 0; k < operation_cycle_before_comm; k++)
             {
-                ScheduleNaiveStage1(DNNInfo, j, 0);
-//                ScheduleNaiveStage2(DNNInfo, j);
+                ScheduleNaiveStage1(DNNInfo, j, 1);
+                ScheduleNaiveStage2(DNNInfo, j);
                 for (int & n : add_flag) {n = 0;}
             }
             //// Stage3的作用是融合同一个复制块的计算结果，得到完整的结果
-//            ScheduleNaiveStage3(DNNInfo, j);
+            ScheduleNaiveStage3(DNNInfo, j);
             for (int & n : comm_flag) {n = 0;}
             //// StageACT的作用是为每个复制块的计算结果添加激活层
-//            ScheduleNaiveStageAct(DNNInfo, j);
+            ScheduleNaiveStageAct(DNNInfo, j);
             for (int & n : activate_flag) {n = 0;}
             for (int & n : node_offset_instruction_group) {n = 0;}
             for (int l = 0; l < MAX_NODE; ++l) {node_offset_inference_old[l] = node_offset_inference[l];}
         }
-//        AddSeparateLine(DNNInfo, instruction_group_num-1);
+        AddSeparateLine(DNNInfo, instruction_group_num-1);
         //// Stage4的作用是把不同复制块的数据传到一起，以方便下一步后处理的开展。
-//        ScheduleNaiveStage4(DNNInfo, operation_cycle_before_comm);
+        ScheduleNaiveStage4(DNNInfo, operation_cycle_before_comm);
         //// mode为0的Stage6两个作用:同level节点间传输数据、产生copy_offset_flag
         ScheduleNaiveStage6(DNNInfo, operation_cycle_before_comm, 0, 0, 0);
         for (int & n : visit_stage6) {n = 0;}
@@ -869,7 +869,7 @@ void ExecutionSchedule::ScheduleNaive(Json::Value &DNNInfo)
     }
 }
 
-void ExecutionSchedule::ScheduleShowInstruction(Json::Value &DNNInfo)
+void InferencePipelineSchedule::ScheduleShowInstruction(Json::Value &DNNInfo)
 {
     int instruction_group_num = static_cast<int>(DNNInfo["6_core_instruction_ir"].size());
     for (int i = 0; i < instruction_group_num; ++i)
@@ -946,16 +946,16 @@ void ExecutionSchedule::ScheduleShowInstruction(Json::Value &DNNInfo)
                               << std::endl;
                 else if (strcmp(Operation.c_str(), "POOL") == 0 && strcmp(Instruction["operation_type"].asCString(), "VVMAX") == 0)
                     std::cout << "      【" << Operation << "-" << Instruction["operation_type"].asCString() << "】"
-                            << std::setw(5) << " rs1:" << Instruction["source_1"]
-                            << std::setw(5)<< " rs2:" << Instruction["source_2"]
-                            << std::setw(5)<< " rd:" << Instruction["destination"]
-                            << std::setw(12)<< " input_index:" << std::setw(5) << Instruction["input_index"]
-                            << std::setw(12)<< " output_index:" << std::setw(5) << Instruction["output_index"]
-                            << std::setw(12)<< " rs1_offset:" << std::setw(8) << Instruction["rs1_offset"]
-                            << std::setw(12)<< " rs2_offset:" << std::setw(8) << Instruction["input_element_in_total"] << "+" << std::setw(8) <<  Instruction["rs2_offset_in_output"]
-                            << std::setw(12)<< " rd_offset:" << std::setw(8) << Instruction["input_element_in_total"] << "+" << std::setw(8) << Instruction["rs2_offset_in_output"]
-                            << std::setw(12)<< " copy_offset:" << Instruction["copy_offset_flag"]
-                            << std::setw(12)<< " element_num:" << Instruction["element_num"]
+                              << std::setw(5) << " rs1:" << Instruction["source_1"]
+                              << std::setw(5)<< " rs2:" << Instruction["source_2"]
+                              << std::setw(5)<< " rd:" << Instruction["destination"]
+                              << std::setw(12)<< " input_index:" << std::setw(5) << Instruction["input_index"]
+                              << std::setw(12)<< " output_index:" << std::setw(5) << Instruction["output_index"]
+                              << std::setw(12)<< " rs1_offset:" << std::setw(8) << Instruction["rs1_offset"]
+                              << std::setw(12)<< " rs2_offset:" << std::setw(8) << Instruction["input_element_in_total"] << "+" << std::setw(8) <<  Instruction["rs2_offset_in_output"]
+                              << std::setw(12)<< " rd_offset:" << std::setw(8) << Instruction["input_element_in_total"] << "+" << std::setw(8) << Instruction["rs2_offset_in_output"]
+                              << std::setw(12)<< " copy_offset:" << Instruction["copy_offset_flag"]
+                              << std::setw(12)<< " element_num:" << Instruction["element_num"]
                               << std::endl;
                 else if (strcmp(Operation.c_str(), "POOL") == 0 && strcmp(Instruction["operation_type"].asCString(), "VM") == 0)
                     std::cout << "      【" << Operation << "-" << Instruction["operation_type"].asCString() << "】"
@@ -973,8 +973,8 @@ void ExecutionSchedule::ScheduleShowInstruction(Json::Value &DNNInfo)
                               << " rs:" << Instruction["source"]
                               << " copy_offset:" << Instruction["copy_offset_flag"]
                               << " element_num:" << Instruction["element_num"]
-//                              << " node:" << Instruction["node_index"]
-                               << std::endl;
+                              //                              << " node:" << Instruction["node_index"]
+                              << std::endl;
                 else
                     std::cout << "    " << Operation << std::endl;
             }
@@ -982,7 +982,7 @@ void ExecutionSchedule::ScheduleShowInstruction(Json::Value &DNNInfo)
     }
 }
 
-void ExecutionSchedule::SaveJsonIR(Json::Value &DNNInfo, std::string ModelName)
+void InferencePipelineSchedule::SaveJsonIR(Json::Value &DNNInfo, std::string ModelName)
 {
     std::string strJson = DNNInfo.toStyledString();
     std::ofstream fob("../ir/"+ModelName+"/6_es.json", std::ios::trunc | std::ios::out);

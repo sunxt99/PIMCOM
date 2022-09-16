@@ -12,6 +12,7 @@ const int CoreW = 1;  // #Crossbar every row in Core (Logical)
 const int CoreH = 3;  // #Crossbar every column in Core (Logical)
 const int ChipW = 4;  // #Core every row in Chip
 const int ChipH = 4;  // #Core every column in Chip
+enum PipelineType {Inference, Row, Element};
 
 const int MAX_AG = 10000;
 const int MAX_CORE = 5000;

@@ -8,9 +8,9 @@
 #include "CrossbarPartition.h"
 #include "HierarchyMapping.h"
 #include "ElementPlacement.h"
-#include "ExecutionSchedule.h"
+#include "PipelineDesignAndSchedule.h"
 #include "DetailAppend.h"
-#include "PipelineDesign.h"
+
 
 void PIMCOM(const std::string model_name)
 {
@@ -72,27 +72,25 @@ void PIMCOM(const std::string model_name)
         }
     }
 
-    WeightReplication wr;
-    wr.ReplicateWeight(DNNInfo);
-    wr.SaveJsonIR(DNNInfo, model_name);
-    CrossbarPartition cp;
-    cp.PartitionCrossbar(DNNInfo);
-    cp.SaveJsonIR(DNNInfo,model_name);
-    HierarchyMapping hm;
-    hm.MapHierarchy(DNNInfo);
-    hm.SaveJsonIR(DNNInfo, model_name);
-    ElementPlacement ep;
-    ep.PlaceElement(DNNInfo);
-    ep.SaveJsonIR(DNNInfo, model_name);
-    PipelineDesign pd;
-    pd.DesignPipeline(DNNInfo);
-    pd.ShowWaitToActInfo(DNNInfo);
-    pd.SaveJsonIR(DNNInfo, model_name);
-//    pd.ShowClassificationInfo(DNNInfo);
-//    ExecutionSchedule es;
-//    es.ScheduleExecution(DNNInfo);
-//    es.SaveJsonIR(DNNInfo, model_name);
-//    es.ScheduleShowInstruction(DNNInfo);
+    std::cout << "===================== MAPPING =====================" << std::endl;
+    WeightReplication replication;
+    replication.ReplicateWeight(DNNInfo);
+    replication.SaveJsonIR(DNNInfo, model_name);
+    CrossbarPartition partition;
+    partition.PartitionCrossbar(DNNInfo);
+    partition.SaveJsonIR(DNNInfo,model_name);
+    HierarchyMapping mapping;
+    mapping.MapHierarchy(DNNInfo);
+    mapping.SaveJsonIR(DNNInfo, model_name);
+    ElementPlacement placement;
+    placement.PlaceElement(DNNInfo);
+    placement.SaveJsonIR(DNNInfo, model_name);
+    std::cout << "===================== SCHEDULING =====================" << std::endl;
+    // enum PipelineType {Inference, Row, Element};
+    enum PipelineType PipelineUse = Row;
+    PipelineDesignAndSchedule pipeline;
+    pipeline.DesignAndSchedule(DNNInfo, model_name, PipelineUse);
+
 //    DetailAppend da;
 //    da.AppendDetail(DNNInfo);
 //    da.SaveJsonIR(DNNInfo, model_name);
@@ -126,31 +124,32 @@ int main()
     std::string model_name = Models[11];
     PIMCOM(model_name);
 
-//    Json::Reader jsonReader;
-//    Json::Value DNNInfo;
-//    std::ifstream jsonFile("../ir/"+model_name+"/1_wr.json");
-//    if(!jsonReader.parse(jsonFile, DNNInfo, true))
-//    {
-//        std::cout << "error" << std::endl;
-//        return -1;
-//    }
+/*
+    Json::Reader jsonReader;
+    Json::Value DNNInfo;
+    std::ifstream jsonFile("../ir/"+model_name+"/1_wr.json");
+    if(!jsonReader.parse(jsonFile, DNNInfo, true))
+    {
+        std::cout << "error" << std::endl;
+        return -1;
+    }
 
-//    CrossbarPartition cp;
-//    cp.PartitionCrossbar(DNNInfo);
-//    cp.SaveJsonIR(DNNInfo,model_name);
-//    HierarchyMapping hm;
-//    hm.MapHierarchy(DNNInfo);
-//    hm.SaveJsonIR(DNNInfo, model_name);
-//    ElementPlacement ep;
-//    ep.PlaceElement(DNNInfo);
-//    ep.SaveJsonIR(DNNInfo, model_name);
-//
-//    ExecutionSchedule es;
-//    es.ScheduleExecution(DNNInfo);
-//    es.SaveJsonIR(DNNInfo, model_name);
-//
-//    DetailAppend da;
-//    da.AppendDetail(DNNInfo);
-//    da.SaveJsonIR(DNNInfo, model_name);
+    CrossbarPartition cp;
+    cp.PartitionCrossbar(DNNInfo);
+    cp.SaveJsonIR(DNNInfo,model_name);
+    HierarchyMapping hm;
+    hm.MapHierarchy(DNNInfo);
+    hm.SaveJsonIR(DNNInfo, model_name);
+    ElementPlacement ep;
+    ep.PlaceElement(DNNInfo);
+    ep.SaveJsonIR(DNNInfo, model_name);
 
+    ExecutionSchedule es;
+    es.ScheduleExecution(DNNInfo);
+    es.SaveJsonIR(DNNInfo, model_name);
+
+    DetailAppend da;
+    da.AppendDetail(DNNInfo);
+    da.SaveJsonIR(DNNInfo, model_name);
+*/
 }

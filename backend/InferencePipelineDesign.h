@@ -1,20 +1,19 @@
 //
-// Created by SXT on 2022/9/6.
+// Created by SXT on 2022/9/16.
 //
 
-#ifndef PIMCOM_PIPELINEDESIGN_H
-#define PIMCOM_PIPELINEDESIGN_H
+#ifndef PIMCOM_INFERENCEPIPELINEDESIGN_H
+#define PIMCOM_INFERENCEPIPELINEDESIGN_H
 
 #include "configure.h"
 #include "common.h"
 
-class PipelineDesign
+class InferencePipelineDesign
 {
 public:
     void DesignPipeline(Json::Value & DNNInfo);
     void SaveJsonIR(Json::Value & DNNInfo, std::string ModelName);
     void ShowClassificationInfo(Json::Value & DNNInfo);
-    void ShowWaitToActInfo(Json::Value & DNNInfo);
 private:
     Json::Value NodeList;
     int node_num;
@@ -26,4 +25,4 @@ private:
 };
 
 
-#endif //PIMCOM_PIPELINEDESIGN_H
+#endif //PIMCOM_INFERENCEPIPELINEDESIGN_H

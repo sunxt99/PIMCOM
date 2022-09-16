@@ -1,13 +1,14 @@
 //
-// Created by SXT on 2022/8/24.
+// Created by SXT on 2022/9/16.
 //
 
-#ifndef PIMCOM_EXECUTIONSCHEDULE_H
-#define PIMCOM_EXECUTIONSCHEDULE_H
+#ifndef PIMCOM_INFERENCEPIPELINESCHEDULE_H
+#define PIMCOM_INFERENCEPIPELINESCHEDULE_H
+
 #include "configure.h"
 #include "common.h"
 
-class ExecutionSchedule
+class InferencePipelineSchedule
 {
 public:
     void ScheduleExecution(Json::Value & DNNInfo);
@@ -31,4 +32,4 @@ private:
 };
 
 
-#endif //PIMCOM_EXECUTIONSCHEDULE_H
+#endif //PIMCOM_INFERENCEPIPELINESCHEDULE_H
