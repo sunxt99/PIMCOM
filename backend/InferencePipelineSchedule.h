@@ -19,6 +19,7 @@ private:
     int node_num;
     Json::Value CoreList;
     Json::Value NodeList;
+    int GetInputChannelFromOutputIndex(Json::Value & DNNInfo, int node_index, int output_index, bool is_last);
     void SchedulePreparation(Json::Value & DNNInfo);
     void ScheduleNaive(Json::Value & DNNInfo);
     void ScheduleNaiveStage1(Json::Value & DNNInfo, int instruction_group_index, bool append_instruction);

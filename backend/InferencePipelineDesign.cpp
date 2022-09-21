@@ -311,11 +311,9 @@ void InferencePipelineDesign::GetPoolInfo(Json::Value &DNNInfo)
 }
 
 
-
-
 void InferencePipelineDesign::ShowClassificationInfo(Json::Value &DNNInfo)
 {
-    std::cout << "==================== Number Info ====================" << std::endl;
+    std::cout << "****************** Classification Result ********************" << std::endl;
     for (int i = 0; i < node_num; ++i)
     {
         std::cout.setf(std::ios::left); //设置对齐方式为left

@@ -6,7 +6,6 @@
 #define PIMCOM_DETAILAPPEND_H
 
 #include "common.h"
-#include <ctime>
 #include "../configure.h"
 
 class DetailAppend

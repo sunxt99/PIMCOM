@@ -195,8 +195,8 @@ void DetailAppend::PrepareForInput(Json::Value &DNNInfo)
                         start_index_in_input_channel = EndIndexInInputChannel[AG_index_in_total-1];
                     }
                     EndIndexInInputChannel[AG_index_in_total] = start_index_in_input_channel+move_vector_size;
-                    DNNInfo["7_fc_input_info"]["node_list"][node_index]["core_list"][j]["offset"].append(EndIndexInInputChannel[AG_index_in_total-1]);
-                    DNNInfo["7_fc_input_info"]["node_list"][node_index]["core_list"][j]["element_num"].append(move_vector_size);
+//                    DNNInfo["7_fc_input_info"]["node_list"][node_index]["core_list"][j]["offset"].append(EndIndexInInputChannel[AG_index_in_total-1]);
+//                    DNNInfo["7_fc_input_info"]["node_list"][node_index]["core_list"][j]["element_num"].append(move_vector_size);
                 }
                 else
                 {

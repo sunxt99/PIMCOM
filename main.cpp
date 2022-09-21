@@ -49,7 +49,7 @@ void ShowModelInfo(Json::Value & DNNInfo)
     }
     std::cout << "FC Weight: " << FC_weights*weight_precession/8/1024/1024 << "MB" << std::endl;
     std::cout << "Sum Weight: " << weights*weight_precession/8/1024/1024 << "MB" << std::endl;
-    std::cout << "Sum Weight: " << FC_weights/weights*100 << "%" << std::endl;
+    std::cout << "FC Ratio: " << FC_weights/weights*100 << "%" << std::endl;
 }
 
 void PreProcess(Json::Value & DNNInfo)
@@ -138,9 +138,9 @@ void PIMCOM(const std::string model_name)
 //    da.SaveJsonIR(DNNInfo, model_name);
 //    da.ShowDetailedInstruction(DNNInfo);
 
-    std::cout << "========================= EVALUATING =========================" << std::endl;
-    ModelEvaluation evaluation;
-    evaluation.EvaluateModel(DNNInfo);
+//    std::cout << "========================= EVALUATING =========================" << std::endl;
+//    ModelEvaluation evaluation;
+//    evaluation.EvaluateModel(DNNInfo);
 }
 
 int main()
@@ -168,6 +168,6 @@ int main()
 //        std::cout << "************************" << std::endl;
 //    }
 
-    std::string model_name = Models[8];
+    std::string model_name = Models[0];
     PIMCOM(model_name);
 }

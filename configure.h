@@ -8,8 +8,8 @@
 const int CellPrecision = 2;
 const int CrossbarW = 256;
 const int CrossbarH = 256;
-const int CoreW = 1;  // #Crossbar every row in Core (Logical)
-const int CoreH = 3;  // #Crossbar every column in Core (Logical)
+const int CoreW = 8;  // #Crossbar every row in Core (Logical)
+const int CoreH = 8;  // #Crossbar every column in Core (Logical)
 const int ChipW = 8;  // #Core every row in Chip
 const int ChipH = 8;  // #Core every column in Chip
 enum PipelineType {Inference, Row, Element};
