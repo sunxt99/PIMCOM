@@ -64,6 +64,7 @@ void InferencePipelineSchedule::SchedulePreparation(Json::Value &DNNInfo)
             AGInfo["input_cycle_this_replication_start"] = DNNInfo["4_physical_crossbar_placement"][i]["input_cycle_this_replication_start"].asInt();
             AGInfo["input_cycle_this_replication_end"] = DNNInfo["4_physical_crossbar_placement"][i]["input_cycle_this_replication_end"].asInt();
 
+            AGInfo["level_index"] = NodeList[node_index]["level_index"].asInt();
             DNNInfo["6_physical_core_AG_map"]["core_list"][core_index]["AG_list"].append(AGInfo);
             DNNInfo["6_physical_core_AG_map"]["core_list"][core_index]["node_list"].append(node_index);
         }
@@ -186,7 +187,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage1(Json::Value &  DNNInfo, int 
             // 注意: 这里的start和end都包括，也就是input_cycle数量为end-start+1
             int input_cycle_this_replication_start = CoreList[i]["AG_list"][j]["input_cycle_this_replication_start"].asInt();
             int input_cycle_this_replication_end = CoreList[i]["AG_list"][j]["input_cycle_this_replication_end"].asInt();
-
+            int level_index = CoreList[i]["AG_list"][j]["level_index"].asInt();
             // 测试用
 //            int input_cycle_this_replication_end;
 //            switch (node_index)
@@ -222,7 +223,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage1(Json::Value &  DNNInfo, int 
                 Instruction["operation"] = "MVMUL";
                 Instruction["destination"] = Instruction["AG_index_in_total"];
                 Instruction["source"] = Instruction["AG_index_in_total"];
-
+                Instruction["level_index"] = level_index;
 
                 // get the input_element_num and output_element_num
                 int effective_node_index = DNNInfo["node_list"][node_index]["effective_node_index"].asInt();
@@ -308,6 +309,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage2(Json::Value &  DNNInfo, int 
             int current_node_index = CoreList[i]["node_list"][j].asInt();
             int current_replication_index = CoreList[i]["AG_list"][j]["replication_index"].asInt();
             int AG_index_in_total = CoreList[i]["AG_list"][j]["AG_index_in_total"].asInt();
+            int level_index = CoreList[i]["AG_list"][j]["level_index"].asInt();
             if (node_index == current_node_index && replication_index == current_replication_index)
             {
                 if (add_flag[AG_index_in_total] == 1)
@@ -319,6 +321,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage2(Json::Value &  DNNInfo, int 
                     Instruction["source_2"] = CoreList[i]["AG_list"][j]["AG_index_in_total"];
                     Instruction["AGP"] = CoreList[i]["AG_list"][j]["AGP"].asInt();
                     Instruction["agp_index"] = CoreList[i]["AG_list"][j]["agp_index"].asInt();
+                    Instruction["level_index"] = level_index;
 
                     Instruction["relative_length"] = 1;
                     Instruction["element_num"] = Instruction["relative_length"].asInt() * AG_output_element_size[Instruction["source_1"].asInt()];
@@ -356,6 +359,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage3(Json::Value &  DNNInfo, int 
             int replication_index = CoreList[i]["AG_list"][j]["replication_index"].asInt();
             int AG_index_in_replication = CoreList[i]["AG_list"][j]["AG_index_in_replication"].asInt();
             int AG_index_in_total = CoreList[i]["AG_list"][j]["AG_index_in_total"].asInt();
+            int level_index = CoreList[i]["AG_list"][j]["level_index"].asInt();
             bool SendRecv = false;
             if (AG_index_in_replication != 0)
             {
@@ -377,6 +381,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage3(Json::Value &  DNNInfo, int 
                     int RecvCore = DNNInfo["6_first_AG_info"]["node_list"][node_index]["replication_list"][replication_index].asInt();
                     // 添加发送接收指令和结果融合指令。
                     Json::Value Instruction_send;
+                    Instruction_send["level_index"] = level_index;
                     Instruction_send["operation"] = "SEND";
                     Instruction_send["to_core"] = RecvCore;
                     Instruction_send["source"] = AG_index_in_total;
@@ -390,6 +395,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage3(Json::Value &  DNNInfo, int 
                     DNNInfo["6_core_instruction_ir"][instruction_group_index]["core_list"][i]["instruction_ir_list"].append(Instruction_send);
 
                     Json::Value Instruction_recv;
+                    Instruction_recv["level_index"] = level_index;
                     Instruction_recv["operation"] = "RECV";
                     Instruction_recv["from_core"] = i;
                     // TODO: destination?
@@ -405,6 +411,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage3(Json::Value &  DNNInfo, int 
                     DNNInfo["6_core_instruction_ir"][instruction_group_index]["core_list"][RecvCore]["instruction_ir_list"].append(Instruction_recv);
 
                     Json::Value Instruction_vadd;
+                    Instruction_vadd["level_index"] = level_index;
                     Instruction_vadd["operation"] = "VADD";
                     Json::Value CoreInfo = DNNInfo["6_physical_core_AG_map"]["core_list"][RecvCore];
                     int tmp_AG_num = CoreInfo["AG_list"].size();
@@ -456,9 +463,11 @@ void InferencePipelineSchedule::ScheduleNaiveStageAct(Json::Value &DNNInfo, int 
             int AG_index_in_replication = CoreList[i]["AG_list"][j]["AG_index_in_replication"].asInt();
             int AG_num_per_replication = CoreList[i]["AG_list"][j]["AG_num_per_replication"].asInt();
             int node_index = CoreList[i]["node_list"][j].asInt();
+            int level_index = CoreList[i]["AG_list"][j]["level_index"].asInt();
             if (activate_flag[AG_index_in_total] == 1)
             {
                 Json::Value Instruction;
+                Instruction["level_index"] = level_index;
                 Instruction["operation"] = "ReLU";
                 Instruction["relative_length"] = node_offset_instruction_group[AG_index_in_total];
                 Instruction["source"] = AG_index_in_total;
@@ -490,6 +499,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage4(Json::Value &  DNNInfo, int 
             int AG_index_in_total = CoreList[i]["AG_list"][j]["AG_index_in_total"].asInt();
             int replication_num = CoreList[i]["AG_list"][j]["replication_num"].asInt();
             int AG_num_per_replication = CoreList[i]["AG_list"][j]["AG_num_per_replication"].asInt();
+            int level_index = CoreList[i]["AG_list"][j]["level_index"].asInt();
             // replication_index不等于0 且 AG_index_in_replication=0 的AG0需要把结果传递给Rep0-AG0
             // 还要看AGx和AG0是否在同一个核，这样就避免了同核之间的SEND/RECV
             if (AG_index_in_replication == 0 && replication_index != 0  && wb_flag[AG_index_in_total] > 0)
@@ -503,10 +513,10 @@ void InferencePipelineSchedule::ScheduleNaiveStage4(Json::Value &  DNNInfo, int 
                 {
                     int RecvCore = DNNInfo["6_first_AG_info"]["node_list"][node_index]["replication_list"][0].asInt();
                     Json::Value Instruction_send;
+                    Instruction_send["level_index"] = level_index;
                     Instruction_send["operation"] = "SEND";
                     Instruction_send["to_core"] = RecvCore;
                     Instruction_send["source"] = AG_index_in_total;
-
                     Instruction_send["relative_length"] = node_offset_inference[AG_index_in_total];
                     Instruction_send["element_num"] = Instruction_send["relative_length"].asInt() * AG_output_element_size[AG_index_in_total];
 //                    int real_instruction_group_index = (Instruction_send["relative_length"].asInt()-1)/operation_cycle_before_comm;
@@ -517,6 +527,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage4(Json::Value &  DNNInfo, int 
                     DNNInfo["6_core_instruction_ir"][real_instruction_group_index]["core_list"][i]["instruction_ir_list"].append(Instruction_send);
 
                     Json::Value Instruction_recv;
+                    Instruction_recv["level_index"] = level_index;
                     Instruction_recv["operation"] = "RECV";
                     Instruction_recv["from_core"] = i;
                     Instruction_recv["destination"] = AG_index_in_total;
@@ -529,6 +540,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage4(Json::Value &  DNNInfo, int 
 
                     // 这里的WB指的是接受之后写回到正确的位置
                     Json::Value Instruction_wb;
+                    Instruction_wb["level_index"] = level_index;
                     Instruction_wb["operation"] = "WB";
                     Instruction_wb["source"] = AG_index_in_total;
                     Instruction_wb["replication_index"] = replication_index;
@@ -542,6 +554,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage4(Json::Value &  DNNInfo, int 
                 else
                 {
                     Json::Value Instruction_wb;
+                    Instruction_wb["level_index"] = level_index;
                     Instruction_wb["operation"] = "WB";
                     Instruction_wb["source"] = AG_index_in_total;
                     Instruction_wb["replication_index"] = replication_index;
@@ -558,6 +571,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage4(Json::Value &  DNNInfo, int 
             else if (AG_index_in_replication == 0 && replication_index == 0  && wb_flag[AG_index_in_total] > 0)
             {
                 Json::Value Instruction_wb;
+                Instruction_wb["level_index"] = level_index;
                 Instruction_wb["operation"] = "WB";
                 Instruction_wb["source"] = AG_index_in_total;
                 Instruction_wb["replication_index"] = replication_index;
@@ -618,6 +632,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage5(Json::Value & DNNInfo, int o
                             continue;
                         int effective_provider_index = NodeList[provider_index]["AG0_node_index"].asInt();
                         Json::Value Instruction;
+                        Instruction["level_index"] = NodeList[consumer_index]["level_index"];
                         Instruction["operation"] = "ELTWISE";
                         Instruction["operation_type"] = elt_operation;
                         Instruction["node_index"] = consumer_index;
@@ -652,6 +667,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage5(Json::Value & DNNInfo, int o
                         int provider_AG0_index = NodeList[provider_index]["AG0_index_in_total"].asInt();
                         int effective_provider_index = NodeList[provider_index]["AG0_node_index"].asInt();
                         Json::Value Instruction;
+                        Instruction["level_index"] = NodeList[consumer_index]["level_index"];
                         Instruction["operation"] = "CONCAT";
                         Instruction["operation_type"] = "VM";
                         Instruction["node_index"] = consumer_index;
@@ -684,6 +700,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage5(Json::Value & DNNInfo, int o
 //                                int rs_offset = input_cycle * output_channel_element_size;
 //                                int rd_offset = input_cycle * output_channel_element_size_concat + accumulated_offset;
 //                                Json::Value Instruction_detail;
+//                                Instruction_detail["level_index"] = NodeList[consumer_index]["level_index"];
 //                                Instruction_detail["input_cycle"] = input_cycle;
 //                                Instruction_detail["operation"] = "CONCAT";
 //                                Instruction_detail["operation_type"] = "VM-detail";
@@ -708,6 +725,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage5(Json::Value & DNNInfo, int o
                     {
                         int effective_provider_index = NodeList[node_index]["AG0_node_index"].asInt();
                         Json::Value Instruction;
+                        Instruction["level_index"] = NodeList[consumer_index]["level_index"];
                         Instruction["operation"] = consumer_op;
                         Instruction["node_index"] = consumer_index;
                         Instruction["source"] = AG0_index_in_total;
@@ -736,6 +754,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage5(Json::Value & DNNInfo, int o
 //                        {
 //                            int output_index = PoolInfo[input_index][k].asInt();
 //                            Json::Value Instruction;
+//                            Instruction["level_index"] = NodeList[consumer_index]["level_index"];
 //                            Instruction["operation"] = "POOL";
 //                            Instruction["input_index"] = input_index;
 //                            Instruction["output_index"] = output_index;
@@ -774,6 +793,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage5(Json::Value & DNNInfo, int o
                 {
                     int effective_provider_index = NodeList[node_index]["AG0_node_index"].asInt();
                     Json::Value Instruction;
+                    Instruction["level_index"] = NodeList[consumer_index]["level_index"];
                     Instruction["operation"] = consumer_op;
                     Instruction["node_index"] = consumer_index;
                     Instruction["source"] = AG0_index_in_total;
@@ -891,6 +911,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage6(Json::Value & DNNInfo, int o
 //                                std::cout << "[Comm] from core_" << provider_core << " node_" << node_index << " AG_" << provider_AG_index << " TO "
 //                                          << "core_" << consumer_core << " node_" << consumer_index << " AG_" << consumer_AG_index << std::endl;
                                 Json::Value Instruction_send;
+                                Instruction_send["level_index"] = NodeList[consumer_index]["level_index"];
                                 Instruction_send["operation"] = "SEND";
                                 Instruction_send["to_core"] = consumer_core;
                                 Instruction_send["source"] = provider_AG_index;
@@ -904,6 +925,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage6(Json::Value & DNNInfo, int o
                                 DNNInfo["6_core_instruction_ir"][real_instruction_group_index]["core_list"][provider_core]["instruction_ir_list"].append(Instruction_send);
 
                                 Json::Value Instruction_recv;
+                                Instruction_recv["level_index"] = NodeList[consumer_index]["level_index"];
                                 Instruction_recv["operation"] = "RECV";
                                 Instruction_recv["from_core"] = provider_core;
                                 Instruction_recv["destination"] = provider_AG_index;
@@ -935,13 +957,36 @@ void InferencePipelineSchedule::ScheduleNaiveStage6(Json::Value & DNNInfo, int o
                                 int recv_AG_index = DNNInfo["6_recv_info"]["node_list"][consumer_index][j]["AG_index"].asInt();
                                 if (recv_core != provider_core)
                                 {
+                                    if (strcmp(NodeList[NodeList[consumer_index]["provider_index"][0].asInt()]["operation"].asCString(),"OP_INPUT") == 0)
+                                        continue;
                                     std::cout << "[Comm] from core_" << provider_core << " node_" << node_index << " AG_" << provider_AG_index << " TO "
                                               << "core_" << recv_core << " node_" << consumer_index << " AG_" << recv_AG_index << " replication_" << recv_replication << std::endl;
                                     int effective_consumer_index = NodeList[consumer_index]["effective_node_index"].asInt();
                                     int first_output_index = DNNInfo["2_AG_partition"][effective_consumer_index]["replication"][recv_replication]["input_cycle_this_start"].asInt();
                                     int last_output_index = DNNInfo["2_AG_partition"][effective_consumer_index]["replication"][recv_replication]["input_cycle_this_end"].asInt();
-                                    std::cout << GetInputChannelFromOutputIndex(DNNInfo, consumer_index, first_output_index, 0) << std::endl;
-                                    std::cout << GetInputChannelFromOutputIndex(DNNInfo, consumer_index, last_output_index, 1) << std::endl;
+                                    std::cout << " start_position:" << GetInputChannelFromOutputIndex(DNNInfo, consumer_index, first_output_index, 0) << std::endl;
+                                    std::cout << " end_position:" << GetInputChannelFromOutputIndex(DNNInfo, consumer_index, last_output_index, 1) << std::endl;
+                                    int channel_num = GetInputChannelFromOutputIndex(DNNInfo, consumer_index, last_output_index, 1) - GetInputChannelFromOutputIndex(DNNInfo, consumer_index, first_output_index, 0);
+                                    int channel_length = NodeList[consumer_index]["param"]["input_channel"].asInt();
+
+                                    Json::Value Instruction_send;
+                                    Instruction_send["level_index"] = level_index;
+                                    Instruction_send["operation"] = "SEND";
+                                    Instruction_send["to_core"] = recv_core;
+                                    Instruction_send["source"] = provider_AG_index;
+                                    Instruction_send["offset"] = GetInputChannelFromOutputIndex(DNNInfo, consumer_index, first_output_index, 0);
+                                    Instruction_send["element_num"] = channel_num * channel_length;
+                                    Instruction_send["instruction_group_index"] = instruction_group_index;
+                                    DNNInfo["6_core_instruction_ir"][instruction_group_index]["core_list"][provider_core]["instruction_ir_list"].append(Instruction_send);
+
+                                    Json::Value Instruction_recv;
+                                    Instruction_recv["level_index"] = level_index;
+                                    Instruction_recv["operation"] = "RECV";
+                                    Instruction_recv["from_core"] = provider_core;
+                                    Instruction_recv["destination"] = recv_AG_index;
+                                    Instruction_recv["element_num"] = channel_num * channel_length;
+                                    Instruction_recv["instruction_group_index"] = instruction_group_index;
+                                    DNNInfo["6_core_instruction_ir"][instruction_group_index]["core_list"][recv_core]["instruction_ir_list"].append(Instruction_recv);
                                 }
                             }
                         }
@@ -950,6 +995,8 @@ void InferencePipelineSchedule::ScheduleNaiveStage6(Json::Value & DNNInfo, int o
                             int comm_num = DNNInfo["6_recv_info"]["node_list"][consumer_index].size();
                             for (int j = 0; j < comm_num; ++j)
                             {
+                                if (strcmp(NodeList[NodeList[consumer_index]["provider_index"][0].asInt()]["operation"].asCString(),"OP_INPUT") == 0)
+                                    continue;
                                 int recv_core = DNNInfo["6_recv_info"]["node_list"][consumer_index][j]["core_index"].asInt();
                                 int recv_AG_index = DNNInfo["6_recv_info"]["node_list"][consumer_index][j]["AG_index"].asInt();
                                 if (recv_core != provider_core)
@@ -959,6 +1006,25 @@ void InferencePipelineSchedule::ScheduleNaiveStage6(Json::Value & DNNInfo, int o
                                     int start_offset = DNNInfo["6_recv_info"]["node_list"][consumer_index][j]["start_offset_element"].asInt();
                                     int recv_element = DNNInfo["6_recv_info"]["node_list"][consumer_index][j]["recv_element"].asInt();
                                     std::cout << " start_offset:" << start_offset << " recv_element:" << recv_element << std::endl;
+
+                                    Json::Value Instruction_send;
+                                    Instruction_send["level_index"] = level_index;
+                                    Instruction_send["operation"] = "SEND";
+                                    Instruction_send["to_core"] = recv_core;
+                                    Instruction_send["source"] = provider_AG_index;
+                                    Instruction_send["offset"] = start_offset;
+                                    Instruction_send["element_num"] = recv_element;
+                                    Instruction_send["instruction_group_index"] = instruction_group_index;
+                                    DNNInfo["6_core_instruction_ir"][instruction_group_index]["core_list"][provider_core]["instruction_ir_list"].append(Instruction_send);
+
+                                    Json::Value Instruction_recv;
+                                    Instruction_recv["level_index"] = level_index;
+                                    Instruction_recv["operation"] = "RECV";
+                                    Instruction_recv["from_core"] = provider_core;
+                                    Instruction_recv["destination"] = recv_AG_index;
+                                    Instruction_recv["element_num"] = recv_element;
+                                    Instruction_recv["instruction_group_index"] = instruction_group_index;
+                                    DNNInfo["6_core_instruction_ir"][instruction_group_index]["core_list"][recv_core]["instruction_ir_list"].append(Instruction_recv);
                                 }
                             }
                         }
@@ -975,6 +1041,25 @@ void InferencePipelineSchedule::ScheduleNaiveStage6(Json::Value & DNNInfo, int o
                                     output_dim *= NodeList[node_index]["output_dim"][j].asInt();
                                 }
                                 std::cout << output_dim << std::endl;
+
+                                Json::Value Instruction_send;
+                                Instruction_send["level_index"] = level_index;
+                                Instruction_send["operation"] = "SEND";
+                                Instruction_send["to_core"] = consumer_core;
+                                Instruction_send["source"] = provider_AG_index;
+                                Instruction_send["offset"] = 0;
+                                Instruction_send["element_num"] = output_dim;
+                                Instruction_send["instruction_group_index"] = instruction_group_index;
+                                DNNInfo["6_core_instruction_ir"][instruction_group_index]["core_list"][provider_core]["instruction_ir_list"].append(Instruction_send);
+
+                                Json::Value Instruction_recv;
+                                Instruction_recv["level_index"] = level_index;
+                                Instruction_recv["operation"] = "RECV";
+                                Instruction_recv["from_core"] = provider_core;
+                                Instruction_recv["destination"] = provider_AG_index; // the same to send_source
+                                Instruction_recv["element_num"] = output_dim;
+                                Instruction_recv["instruction_group_index"] = instruction_group_index;
+                                DNNInfo["6_core_instruction_ir"][instruction_group_index]["core_list"][consumer_core]["instruction_ir_list"].append(Instruction_recv);
                             }
                         }
                     }
@@ -990,14 +1075,94 @@ void InferencePipelineSchedule::ScheduleNaiveStage6(Json::Value & DNNInfo, int o
                                 int recv_AG_index = DNNInfo["6_recv_info"]["node_list"][consumer_index][j]["AG_index"].asInt();
                                 if (recv_core != provider_core)
                                 {
+                                    if (strcmp(NodeList[NodeList[consumer_index]["provider_index"][0].asInt()]["operation"].asCString(),"OP_INPUT") == 0)
+                                        continue;
                                     std::cout << "[Cache] from core_" << provider_core << " node_" << node_index << " AG_" << provider_AG_index << " TO "
                                               << "core_" << recv_core << " node_" << consumer_index << " AG_" << recv_AG_index << " replication_" << recv_replication << std::endl;
+                                    int effective_consumer_index = NodeList[consumer_index]["effective_node_index"].asInt();
+                                    int first_output_index = DNNInfo["2_AG_partition"][effective_consumer_index]["replication"][recv_replication]["input_cycle_this_start"].asInt();
+                                    int last_output_index = DNNInfo["2_AG_partition"][effective_consumer_index]["replication"][recv_replication]["input_cycle_this_end"].asInt();
+                                    std::cout << " start_position:" << GetInputChannelFromOutputIndex(DNNInfo, consumer_index, first_output_index, 0) << std::endl;
+                                    std::cout << " end_position:" << GetInputChannelFromOutputIndex(DNNInfo, consumer_index, last_output_index, 1) << std::endl;
+                                    int channel_num = GetInputChannelFromOutputIndex(DNNInfo, consumer_index, last_output_index, 1) - GetInputChannelFromOutputIndex(DNNInfo, consumer_index, first_output_index, 0);
+                                    int channel_length = NodeList[consumer_index]["param"]["input_channel"].asInt();
+
+                                    Json::Value Instruction_st;
+                                    Instruction_st["level_index"] = level_index;
+                                    Instruction_st["level_diff"] = consumer_level - level_index;
+                                    Instruction_st["operation"] = "ST";
+                                    Instruction_st["source"] = provider_AG_index;
+                                    Instruction_st["destination"] = recv_AG_index;
+                                    Json::Value offset_st;
+                                    offset_st["rs_offset"] = GetInputChannelFromOutputIndex(DNNInfo, consumer_index, first_output_index, 0);
+                                    offset_st["rd_offset_unit"] = (channel_num * channel_length);
+                                    Instruction_st["offset"] = offset_st;
+                                    Instruction_st["element_num"] = channel_num * channel_length;
+                                    Instruction_st["instruction_group_index"] = instruction_group_index;
+                                    DNNInfo["6_core_instruction_ir"][instruction_group_index]["core_list"][provider_core]["instruction_ir_list"].append(Instruction_st);
+
+                                    Json::Value Instruction_ld;
+                                    Instruction_ld["level_index"] = consumer_level-1;
+                                    Instruction_ld["level_diff"] = consumer_level - level_index;
+                                    Instruction_ld["operation"] = "LD";
+                                    Instruction_ld["source"] = recv_AG_index;
+                                    Instruction_ld["destination"] = recv_AG_index;
+                                    Json::Value offset_ld;
+                                    offset_ld["rs_offset_unit"] = (channel_num * channel_length);
+                                    offset_ld["rd_offset"] = 0;
+                                    Instruction_ld["offset"] = offset_ld;
+                                    Instruction_ld["element_num"] = channel_num * channel_length;
+                                    Instruction_ld["instruction_group_index"] = instruction_group_index;
+                                    DNNInfo["6_core_instruction_ir"][instruction_group_index]["core_list"][recv_core]["instruction_ir_list"].append(Instruction_ld);
                                 }
                             }
                         }
                         else if (strcmp(NodeList[consumer_index]["operation"].asCString(),"OP_FC") == 0)
                         {
+                            int comm_num = DNNInfo["6_recv_info"]["node_list"][consumer_index].size();
+                            for (int j = 0; j < comm_num; ++j)
+                            {
+                                if (strcmp(NodeList[NodeList[consumer_index]["provider_index"][0].asInt()]["operation"].asCString(),"OP_INPUT") == 0)
+                                    continue;
+                                int recv_core = DNNInfo["6_recv_info"]["node_list"][consumer_index][j]["core_index"].asInt();
+                                int recv_AG_index = DNNInfo["6_recv_info"]["node_list"][consumer_index][j]["AG_index"].asInt();
+                                if (recv_core != provider_core)
+                                {
+                                    std::cout << "[Cache] from core_" << provider_core << " node_" << node_index << " AG_" << provider_AG_index << " TO "
+                                              << "core_" << recv_core << " node_" << consumer_index << " AG_" << recv_AG_index  << std::endl;
+                                    int start_offset = DNNInfo["6_recv_info"]["node_list"][consumer_index][j]["start_offset_element"].asInt();
+                                    int recv_element = DNNInfo["6_recv_info"]["node_list"][consumer_index][j]["recv_element"].asInt();
+                                    std::cout << " start_offset:" << start_offset << " recv_element:" << recv_element << std::endl;
 
+                                    Json::Value Instruction_st;
+                                    Instruction_st["level_index"] = level_index;
+                                    Instruction_st["level_diff"] = consumer_level - level_index;
+                                    Instruction_st["operation"] = "ST";
+                                    Instruction_st["source"] = provider_AG_index;
+                                    Instruction_st["destination"] = recv_AG_index;
+                                    Json::Value offset_st;
+                                    offset_st["rs_offset"] = start_offset;
+                                    offset_st["rd_offset_unit"] = recv_element;
+                                    Instruction_st["offset"] = offset_st;
+                                    Instruction_st["element_num"] = recv_element;
+                                    Instruction_st["instruction_group_index"] = instruction_group_index;
+                                    DNNInfo["6_core_instruction_ir"][instruction_group_index]["core_list"][provider_core]["instruction_ir_list"].append(Instruction_st);
+
+                                    Json::Value Instruction_ld;
+                                    Instruction_ld["level_index"] = consumer_level-1;
+                                    Instruction_ld["level_diff"] = consumer_level - level_index;
+                                    Instruction_ld["operation"] = "LD";
+                                    Instruction_ld["source"] = recv_AG_index;
+                                    Instruction_ld["destination"] = recv_AG_index;
+                                    Json::Value offset_ld;
+                                    offset_ld["rs_offset_unit"] = recv_element;
+                                    offset_ld["rd_offset"] = 0;
+                                    Instruction_ld["offset"] = offset_ld;
+                                    Instruction_ld["element_num"] = recv_element;
+                                    Instruction_ld["instruction_group_index"] = instruction_group_index;
+                                    DNNInfo["6_core_instruction_ir"][instruction_group_index]["core_list"][recv_core]["instruction_ir_list"].append(Instruction_ld);
+                                }
+                            }
                         }
                         else
                         {
@@ -1005,6 +1170,41 @@ void InferencePipelineSchedule::ScheduleNaiveStage6(Json::Value & DNNInfo, int o
                             {
                                 std::cout << "[Cache] from core_" << provider_core <<" node_" << node_index << " AG_" << provider_AG_index << " TO "
                                           << "core_" << consumer_core<<" node_" << consumer_index  << " AG_" << consumer_AG_index << std::endl;
+                                int output_dim_num = NodeList[node_index]["output_dim_num"].asInt();
+                                int output_dim = 1;
+                                for (int j = 0; j < output_dim_num; ++j)
+                                {
+                                    output_dim *= NodeList[node_index]["output_dim"][j].asInt();
+                                }
+                                std::cout << output_dim << std::endl;
+
+                                Json::Value Instruction_st;
+                                Instruction_st["level_index"] = level_index;
+                                Instruction_st["level_diff"] = consumer_level - level_index;
+                                Instruction_st["operation"] = "ST";
+                                Instruction_st["source"] = provider_AG_index;
+                                Instruction_st["destination"] = provider_AG_index;
+                                Json::Value offset_st;
+                                offset_st["rs_offset"] = 0;
+                                offset_st["rd_offset_unit"] = output_dim;
+                                Instruction_st["offset"] = offset_st;
+                                Instruction_st["element_num"] = output_dim;
+                                Instruction_st["instruction_group_index"] = instruction_group_index;
+                                DNNInfo["6_core_instruction_ir"][instruction_group_index]["core_list"][provider_core]["instruction_ir_list"].append(Instruction_st);
+
+                                Json::Value Instruction_ld;
+                                Instruction_ld["level_index"] = consumer_level-1;
+                                Instruction_ld["level_diff"] = consumer_level - level_index;
+                                Instruction_ld["operation"] = "LD";
+                                Instruction_ld["source"] = provider_AG_index;
+                                Instruction_ld["destination"] = provider_AG_index; // the same to send_source
+                                Json::Value offset_ld;
+                                offset_ld["rs_offset_unit"] = output_dim;
+                                offset_ld["rd_offset"] = 0;
+                                Instruction_ld["offset"] = offset_ld;
+                                Instruction_ld["element_num"] = output_dim;
+                                Instruction_ld["instruction_group_index"] = instruction_group_index;
+                                DNNInfo["6_core_instruction_ir"][instruction_group_index]["core_list"][consumer_core]["instruction_ir_list"].append(Instruction_ld);
                             }
                         }
                     }
@@ -1027,162 +1227,186 @@ void InferencePipelineSchedule::AddSeparateLine(Json::Value & DNNInfo, int instr
     }
 }
 
-
+const static int inference_start = 100;
+const static int inference_end = 100;
 void InferencePipelineSchedule::ScheduleNaive(Json::Value &DNNInfo)
 {
     // TODO：未考虑是否死锁。或许会出现这种情况。
     CoreList = DNNInfo["6_physical_core_AG_map"]["core_list"];
-    int inference_num = 1;
-    int instruction_group_num = 2;
+    int instruction_group_num = 1;
     int operation_cycle_before_comm = 2;
     DNNInfo["6_core_instruction_ir"].resize(instruction_group_num);
 
-    for (int i = 0; i < inference_num; ++i)
+    for (int j = 0; j < instruction_group_num; ++j)
     {
-        for (int j = 0; j < instruction_group_num; ++j)
+        DNNInfo["6_core_instruction_ir"][j]["core_list"].resize(core_num);
+        for (int k = 0; k < operation_cycle_before_comm; k++)
         {
-            DNNInfo["6_core_instruction_ir"][j]["core_list"].resize(core_num);
-            for (int k = 0; k < operation_cycle_before_comm; k++)
-            {
-                ScheduleNaiveStage1(DNNInfo, j, 1);
-                ScheduleNaiveStage2(DNNInfo, j);
-                for (int & n : add_flag) {n = 0;}
-            }
-            //// Stage3的作用是融合同一个复制块的计算结果，得到完整的结果
-            ScheduleNaiveStage3(DNNInfo, j);
-            for (int & n : comm_flag) {n = 0;}
-            //// StageACT的作用是为每个复制块的计算结果添加激活层
-            ScheduleNaiveStageAct(DNNInfo, j);
-            for (int & n : activate_flag) {n = 0;}
-            for (int & n : node_offset_instruction_group) {n = 0;}
-            for (int l = 0; l < MAX_NODE; ++l) {node_offset_inference_old[l] = node_offset_inference[l];}
+            ScheduleNaiveStage1(DNNInfo, j, 1);
+            ScheduleNaiveStage2(DNNInfo, j);
+            for (int & n : add_flag) {n = 0;}
         }
-        AddSeparateLine(DNNInfo, instruction_group_num-1);
-        //// Stage4的作用是把不同复制块的数据传到一起，以方便下一步后处理的开展。
-        ScheduleNaiveStage4(DNNInfo, operation_cycle_before_comm, instruction_group_num-1);
-        //// mode为0的Stage6两个作用:同level节点间传输数据、产生copy_offset_flag
-        ScheduleNaiveStage6(DNNInfo, operation_cycle_before_comm, 0, 0, 0, instruction_group_num-1);
-        for (int & n : visit_stage6) {n = 0;}
-        //// Stage5的作用是添加后处理指令
-        ScheduleNaiveStage5(DNNInfo, operation_cycle_before_comm, 0, 0, instruction_group_num-1);
-        for (int & n : visit_stage5) {n = 0;}
-        for (int & n : wb_flag) {n = 0;}
-        //// mode为1的Stage6的作用是将本轮推理周期产生的数据进行传递，以便下一个推理周期的运行
-//        ScheduleNaiveStage6(DNNInfo, operation_cycle_before_comm, 0, 0, 1, instruction_group_num-1);
-        for (int & n : visit_stage6) {n = 0;}
-        for (int & n : node_offset_inference) {n = 0;}
-        for (int & n : AG_accumulated_num) {n = 0;}
+        //// Stage3的作用是融合同一个复制块的计算结果，得到完整的结果
+        ScheduleNaiveStage3(DNNInfo, j);
+        for (int & n : comm_flag) {n = 0;}
+        //// StageACT的作用是为每个复制块的计算结果添加激活层
+        ScheduleNaiveStageAct(DNNInfo, j);
+        for (int & n : activate_flag) {n = 0;}
+        for (int & n : node_offset_instruction_group) {n = 0;}
+        for (int l = 0; l < MAX_NODE; ++l) {node_offset_inference_old[l] = node_offset_inference[l];}
     }
+    AddSeparateLine(DNNInfo, instruction_group_num-1);
+    //// Stage4的作用是把不同复制块的数据传到一起，以方便下一步后处理的开展。
+//    ScheduleNaiveStage4(DNNInfo, operation_cycle_before_comm, instruction_group_num-1);
+    //// mode为0的Stage6两个作用:同level节点间传输数据、产生copy_offset_flag
+//    ScheduleNaiveStage6(DNNInfo, operation_cycle_before_comm, 0, 0, 0, instruction_group_num-1);
+    for (int & n : visit_stage6) {n = 0;}
+    //// Stage5的作用是添加后处理指令
+//    ScheduleNaiveStage5(DNNInfo, operation_cycle_before_comm, 0, 0, instruction_group_num-1);
+    for (int & n : visit_stage5) {n = 0;}
+    for (int & n : wb_flag) {n = 0;}
+    //// mode为1的Stage6的作用是将本轮推理周期产生的数据进行传递，以便下一个推理周期的运行
+//        ScheduleNaiveStage6(DNNInfo, operation_cycle_before_comm, 0, 0, 1, instruction_group_num-1);
+    for (int & n : visit_stage6) {n = 0;}
+    for (int & n : node_offset_inference) {n = 0;}
+    for (int & n : AG_accumulated_num) {n = 0;}
 }
+
 
 void InferencePipelineSchedule::ScheduleShowInstruction(Json::Value &DNNInfo)
 {
-    int instruction_group_num = static_cast<int>(DNNInfo["6_core_instruction_ir"].size());
-    for (int i = 0; i < instruction_group_num; ++i)
+    for (int inf = inference_start; inf <= inference_end ; ++inf)
     {
-        std::cout << std::endl;
-        std::cout << "========================================= instruction_group " << i << " =========================================" << std::endl;
-        for (int j = 0; j < core_num; ++j)
+        std::cout << "***************************************************  inference_index " << inf << " *************************************************" << std::endl;
+        int instruction_group_num = static_cast<int>(DNNInfo["6_core_instruction_ir"].size());
+        for (int i = 0; i < instruction_group_num; ++i)
         {
-            std::cout << "core " << j << std::endl;
-            int instruction_num = DNNInfo["6_core_instruction_ir"][i]["core_list"][j]["instruction_ir_list"].size();
-            for (int k = 0; k < instruction_num; ++k)
+            std::cout << std::endl;
+            std::cout << "========================================= instruction_group " << i << " =========================================" << std::endl;
+            for (int j = 0; j < core_num; ++j)
             {
-                Json::Value Instruction = DNNInfo["6_core_instruction_ir"][i]["core_list"][j]["instruction_ir_list"][k];
-                std::string Operation = Instruction["operation"].asCString();
-                if (strcmp(Operation.c_str(), "RECV") == 0)
-                    std::cout << "    [" << Operation << "]"
-                              << " rd:" << Instruction["destination"]
-                              <<  " from Core:" << Instruction["from_core"]
-                              << " rlength:" << Instruction["relative_length"]
-                              << " element_num:" << Instruction["element_num"] << std::endl;
-                else if (strcmp(Operation.c_str(), "SEND") == 0)
-                    std::cout << "    [" << Operation << "]"
-                              << " rs:" << Instruction["source"]
-                              <<  " to Core:" << Instruction["to_core"]
-                              << " rlength:" << Instruction["relative_length"]
-                              << " element_num:" << Instruction["element_num"] << std::endl;
-                else if (strcmp(Operation.c_str(), "WB") == 0)
-                    std::cout << "    [" << Operation << "]"
-                              << " rs:" << Instruction["source"]
-                              << " rep_index:" << Instruction["replication_index"]
-                              << " rlength:" << Instruction["relative_length"]
-                              << " element_num:" << Instruction["element_num"] << std::endl;
-                else if (strcmp(Operation.c_str(), "MVMUL") == 0)
-                    std::cout << "    [" << Operation << "]"
-                              << " rd:" << Instruction["destination"]
-                              << " rd_offset:" << Instruction["offset"]["value"]
-                              << " rs:" << Instruction["source"]
-                              << " node:" << Instruction["node_index"]
-                              << " input:" << Instruction["input_cycle_index"]
-                              << " input_element_num:" << Instruction["input_element_num"]
-                              << " output_element_num:" << Instruction["output_element_num"] <<  std::endl;
-                else if (strcmp(Operation.c_str(), "VADD") == 0)
-                    std::cout << "    [" << Operation << "]"
-                              << " rs1:" << Instruction["source_1"]
-                              << " rs2:" << Instruction["source_2"]
-                              << " rd:" << Instruction["destination"]
-                              << " offset:" << Instruction["offset"]["value"]
-                              << " rlength:" << Instruction["relative_length"]
-                              << " element_num:" << Instruction["element_num"] << std::endl;
-                else if (strcmp(Operation.c_str(), "ReLU") == 0)
-                    std::cout << "    <" << Operation << ">"
-                              << " rs:" << Instruction["source"]
-                              << " rd:" << Instruction["destination"]
-                              << " offset:" << Instruction["offset"]["value"]
-                              << " rlength:" << Instruction["relative_length"]
-                              << " element_num:" << Instruction["element_num"] << std::endl;
-                else if (strcmp(Operation.c_str(), "ELTWISE") == 0)
-                    std::cout << "      【" << Operation << "-" << Instruction["operation_type"].asCString() << "】"
-                              << " rs1:" << Instruction["source_1"]
-                              << " rs2:" << Instruction["source_2"]
-                              << " rd:" << Instruction["destination"]
-                              << " copy_offset:" << Instruction["copy_offset_flag"]
-                              << " element_num:" << Instruction["element_num"]
-                              << std::endl;
-                else if (strcmp(Operation.c_str(), "CONCAT") == 0)
-                    std::cout << "      【" << Operation << "-" << Instruction["operation_type"].asCString() << "】"
-                              << " rs:" << Instruction["source"]
-                              << " rd:" << Instruction["destination"]
-                              << " rs_offset:" << Instruction["rs_offset"]
-                              << " rd_offset:" << Instruction["rd_offset"]
-                              << " input_cycle:" << Instruction["input_cycle"]
-                              << " copy_offset:" << Instruction["copy_offset_flag"]
-                              << " element_num:" << Instruction["element_num"]
-                              << std::endl;
-                else if (strcmp(Operation.c_str(), "POOL") == 0 && strcmp(Instruction["operation_type"].asCString(), "VVMAX") == 0)
-                    std::cout << "      【" << Operation << "-" << Instruction["operation_type"].asCString() << "】"
-                              << std::setw(5) << " rs1:" << Instruction["source_1"]
-                              << std::setw(5)<< " rs2:" << Instruction["source_2"]
-                              << std::setw(5)<< " rd:" << Instruction["destination"]
-                              << std::setw(12)<< " input_index:" << std::setw(5) << Instruction["input_index"]
-                              << std::setw(12)<< " output_index:" << std::setw(5) << Instruction["output_index"]
-                              << std::setw(12)<< " rs1_offset:" << std::setw(8) << Instruction["rs1_offset"]
-                              << std::setw(12)<< " rs2_offset:" << std::setw(8) << Instruction["input_element_in_total"] << "+" << std::setw(8) <<  Instruction["rs2_offset_in_output"]
-                              << std::setw(12)<< " rd_offset:" << std::setw(8) << Instruction["input_element_in_total"] << "+" << std::setw(8) << Instruction["rs2_offset_in_output"]
-                              << std::setw(12)<< " copy_offset:" << Instruction["copy_offset_flag"]
-                              << std::setw(12)<< " element_num:" << Instruction["element_num"]
-                              << std::endl;
-                else if (strcmp(Operation.c_str(), "POOL") == 0 && strcmp(Instruction["operation_type"].asCString(), "VM") == 0)
-                    std::cout << "      【" << Operation << "-" << Instruction["operation_type"].asCString() << "】"
-                              << std::setw(8) << " rs:" << Instruction["source"]
-                              << std::setw(11)<< " rd:" << Instruction["destination"]
-                              << std::setw(12)<< " input_index:" << std::setw(5) << Instruction["input_index"]
-                              << std::setw(12)<< " output_index:" << std::setw(5) << Instruction["output_index"]
-                              << std::setw(12)<< " rs_offset:" << std::setw(8) << Instruction["rs_offset"]
-                              << std::setw(41)<< " rd_offset:" << std::setw(8) << Instruction["input_element_in_total"] << "+" << std::setw(8) << Instruction["rd_offset_in_output"]
-                              << std::setw(12)<< " copy_offset:" << Instruction["copy_offset_flag"]
-                              << std::setw(12)<< " element_num:" << Instruction["element_num"]
-                              << std::endl;
-                else if (strcmp(Operation.c_str(), "sep") != 0)
-                    std::cout << "      【" << Operation << "】"
-                              << " rs:" << Instruction["source"]
-                              << " copy_offset:" << Instruction["copy_offset_flag"]
-                              << " element_num:" << Instruction["element_num"]
-                              //                              << " node:" << Instruction["node_index"]
-                              << std::endl;
-                else
-                    std::cout << "    " << Operation << std::endl;
+                std::cout << "core " << j << std::endl;
+                int instruction_num = DNNInfo["6_core_instruction_ir"][i]["core_list"][j]["instruction_ir_list"].size();
+                for (int k = 0; k < instruction_num; ++k)
+                {
+                    Json::Value Instruction = DNNInfo["6_core_instruction_ir"][i]["core_list"][j]["instruction_ir_list"][k];
+                    int instruction_level_index = Instruction["level_index"].asInt();
+                    if (instruction_level_index > inf)
+                    {
+                        continue;
+                    }
+                    std::string Operation = Instruction["operation"].asCString();
+                    if (strcmp(Operation.c_str(), "RECV") == 0)
+                        std::cout << "    [" << Operation << "]"
+                                  << " rd:" << Instruction["destination"]
+                                  <<  " from Core:" << Instruction["from_core"]
+                                  << " rlength:" << Instruction["relative_length"]
+                                  << " element_num:" << Instruction["element_num"] << std::endl;
+                    else if (strcmp(Operation.c_str(), "SEND") == 0)
+                        std::cout << "    [" << Operation << "]"
+                                  << " rs:" << Instruction["source"]
+                                  <<  " to Core:" << Instruction["to_core"]
+                                  << " rlength:" << Instruction["relative_length"]
+                                  << " offset:" << Instruction["offset"] // the comm at the end of inference period has "offset" info but no "rlength" info
+                                  << " element_num:" << Instruction["element_num"] << std::endl;
+                    else if (strcmp(Operation.c_str(), "LD") == 0)
+                        std::cout << "    [" << Operation << "]"
+                                  << " rs:" << Instruction["source"]
+                                  << " rd:" << Instruction["destination"]
+                                  << " rs_offset_num:" << (inf-Instruction["level_index"].asInt()) % (Instruction["level_diff"].asInt())
+                                  << " rs_offset_unit:" << Instruction["offset"]["rs_offset_unit"]
+                                  << " rd_offset:" << Instruction["offset"]["rd_offset"]
+                                  << " element_num:" << Instruction["element_num"] << std::endl;
+                    else if (strcmp(Operation.c_str(), "ST") == 0)
+                        std::cout << "    [" << Operation << "]"
+                                  << " rs:" << Instruction["source"]
+                                  << " rd:" << Instruction["destination"]
+                                  << " rs_offset:" << Instruction["offset"]["rs_offset"]
+                                  << " rd_offset_num:" << (inf-Instruction["level_index"].asInt()) % (Instruction["level_diff"].asInt())
+                                  << " rd_offset_unit:" << Instruction["offset"]["rd_offset_unit"]
+                                  << " element_num:" << Instruction["element_num"] << std::endl;
+                    else if (strcmp(Operation.c_str(), "WB") == 0)
+                        std::cout << "    [" << Operation << "]"
+                                  << " rs:" << Instruction["source"]
+                                  << " rep_index:" << Instruction["replication_index"]
+                                  << " rlength:" << Instruction["relative_length"]
+                                  << " element_num:" << Instruction["element_num"] << std::endl;
+                    else if (strcmp(Operation.c_str(), "MVMUL") == 0)
+                        std::cout << "    [" << Operation << "]"
+                                  << " rd:" << Instruction["destination"]
+                                  << " rd_offset:" << Instruction["offset"]["value"]
+                                  << " rs:" << Instruction["source"]
+                                  << " node:" << Instruction["node_index"]
+                                  << " input:" << Instruction["input_cycle_index"]
+                                  << " input_element_num:" << Instruction["input_element_num"]
+                                  << " output_element_num:" << Instruction["output_element_num"] <<  std::endl;
+                    else if (strcmp(Operation.c_str(), "VADD") == 0)
+                        std::cout << "    [" << Operation << "]"
+                                  << " rs1:" << Instruction["source_1"]
+                                  << " rs2:" << Instruction["source_2"]
+                                  << " rd:" << Instruction["destination"]
+                                  << " offset:" << Instruction["offset"]["value"]
+                                  << " rlength:" << Instruction["relative_length"]
+                                  << " element_num:" << Instruction["element_num"] << std::endl;
+                    else if (strcmp(Operation.c_str(), "ReLU") == 0)
+                        std::cout << "    <" << Operation << ">"
+                                  << " rs:" << Instruction["source"]
+                                  << " rd:" << Instruction["destination"]
+                                  << " offset:" << Instruction["offset"]["value"]
+                                  << " rlength:" << Instruction["relative_length"]
+                                  << " element_num:" << Instruction["element_num"] << std::endl;
+                    else if (strcmp(Operation.c_str(), "ELTWISE") == 0)
+                        std::cout << "      【" << Operation << "-" << Instruction["operation_type"].asCString() << "】"
+                                  << " rs1:" << Instruction["source_1"]
+                                  << " rs2:" << Instruction["source_2"]
+                                  << " rd:" << Instruction["destination"]
+                                  << " copy_offset:" << Instruction["copy_offset_flag"]
+                                  << " element_num:" << Instruction["element_num"]
+                                  << std::endl;
+                    else if (strcmp(Operation.c_str(), "CONCAT") == 0)
+                        std::cout << "      【" << Operation << "-" << Instruction["operation_type"].asCString() << "】"
+                                  << " rs:" << Instruction["source"]
+                                  << " rd:" << Instruction["destination"]
+                                  << " rs_offset:" << Instruction["rs_offset"]
+                                  << " rd_offset:" << Instruction["rd_offset"]
+                                  << " input_cycle:" << Instruction["input_cycle"]
+                                  << " copy_offset:" << Instruction["copy_offset_flag"]
+                                  << " element_num:" << Instruction["element_num"]
+                                  << std::endl;
+                    else if (strcmp(Operation.c_str(), "POOL") == 0 && strcmp(Instruction["operation_type"].asCString(), "VVMAX") == 0)
+                        std::cout << "      【" << Operation << "-" << Instruction["operation_type"].asCString() << "】"
+                                  << std::setw(5) << " rs1:" << Instruction["source_1"]
+                                  << std::setw(5)<< " rs2:" << Instruction["source_2"]
+                                  << std::setw(5)<< " rd:" << Instruction["destination"]
+                                  << std::setw(12)<< " input_index:" << std::setw(5) << Instruction["input_index"]
+                                  << std::setw(12)<< " output_index:" << std::setw(5) << Instruction["output_index"]
+                                  << std::setw(12)<< " rs1_offset:" << std::setw(8) << Instruction["rs1_offset"]
+                                  << std::setw(12)<< " rs2_offset:" << std::setw(8) << Instruction["input_element_in_total"] << "+" << std::setw(8) <<  Instruction["rs2_offset_in_output"]
+                                  << std::setw(12)<< " rd_offset:" << std::setw(8) << Instruction["input_element_in_total"] << "+" << std::setw(8) << Instruction["rs2_offset_in_output"]
+                                  << std::setw(12)<< " copy_offset:" << Instruction["copy_offset_flag"]
+                                  << std::setw(12)<< " element_num:" << Instruction["element_num"]
+                                  << std::endl;
+                    else if (strcmp(Operation.c_str(), "POOL") == 0 && strcmp(Instruction["operation_type"].asCString(), "VM") == 0)
+                        std::cout << "      【" << Operation << "-" << Instruction["operation_type"].asCString() << "】"
+                                  << std::setw(8) << " rs:" << Instruction["source"]
+                                  << std::setw(11)<< " rd:" << Instruction["destination"]
+                                  << std::setw(12)<< " input_index:" << std::setw(5) << Instruction["input_index"]
+                                  << std::setw(12)<< " output_index:" << std::setw(5) << Instruction["output_index"]
+                                  << std::setw(12)<< " rs_offset:" << std::setw(8) << Instruction["rs_offset"]
+                                  << std::setw(41)<< " rd_offset:" << std::setw(8) << Instruction["input_element_in_total"] << "+" << std::setw(8) << Instruction["rd_offset_in_output"]
+                                  << std::setw(12)<< " copy_offset:" << Instruction["copy_offset_flag"]
+                                  << std::setw(12)<< " element_num:" << Instruction["element_num"]
+                                  << std::endl;
+                    else if (strcmp(Operation.c_str(), "sep") != 0)
+                        std::cout << "      【" << Operation << "】"
+                                  << " rs:" << Instruction["source"]
+                                  << " copy_offset:" << Instruction["copy_offset_flag"]
+                                  << " element_num:" << Instruction["element_num"]
+                                  //                              << " node:" << Instruction["node_index"]
+                                  << std::endl;
+                    else
+                        std::cout << "    " << Operation << std::endl;
+                }
             }
         }
     }

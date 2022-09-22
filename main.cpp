@@ -168,6 +168,6 @@ int main()
 //        std::cout << "************************" << std::endl;
 //    }
 
-    std::string model_name = Models[12];
+    std::string model_name = Models[8];
     PIMCOM(model_name);
 }
