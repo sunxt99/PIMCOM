@@ -10,6 +10,8 @@
 #include "backend/ElementPlacement.h"
 #include "backend/PipelineDesignAndSchedule.h"
 #include "backend/DetailAppend.h"
+#include "backend/MemoryAllocation.h"
+
 #include "evaluation/ModelEvaluation.h"
 
 void ShowModelInfo(Json::Value & DNNInfo)
@@ -24,15 +26,17 @@ void ShowModelInfo(Json::Value & DNNInfo)
         Json::Value Node = DNNInfo["node_list"][i];
         if (strcmp(Node["operation"].asCString(), "OP_CONV") == 0)
         {
+            std::cout << i <<std::endl;
             Json::Value Param = Node["param"];
             float kernel = Param["kernel_h"].asFloat();
             float input_channel = Param["input_channel"].asFloat();
             float output_channel = Param["output_channel"].asFloat();
             weights += kernel * kernel * input_channel * output_channel;
 //            std::cout << "weight: " << kernel * kernel * input_channel * output_channel*weight_precession/8/1024/1024 << "MB" << std::endl;
+            Json::Value Input = Node["input_dim"];
+            std::cout << "input: " << Input[0].asFloat() * Input[1].asFloat() * Input[2].asFloat() * Input[3].asFloat() *weight_precession/8/1024 << "KB" << std::endl;
             Json::Value Output = Node["output_dim"];
-//            std::cout << "output: " <<Output[0].asFloat() * Output[1].asFloat() * Output[2].asFloat() * Output[3].asFloat()*weight_precession/8/1024/1024 << "MB" << std::endl;
-            std::cout << "output: " <<Output[0].asFloat() * Output[1].asFloat() * Output[2].asFloat() * kernel *weight_precession/8/1024 << "KB" << std::endl;
+            std::cout << "output: " << Output[0].asFloat() * Output[1].asFloat() * Output[2].asFloat() * Output[3].asFloat() *weight_precession/8/1024 << "KB" << std::endl;
         }
         else if (strcmp(Node["operation"].asCString(), "OP_FC") == 0)
         {
@@ -138,6 +142,11 @@ void PIMCOM(const std::string model_name)
 //    da.SaveJsonIR(DNNInfo, model_name);
 //    da.ShowDetailedInstruction(DNNInfo);
 
+//    MemoryAllocation allocation;
+//    allocation.AllocateMemory(DNNInfo);
+//    allocation.ShowInstruction(DNNInfo);
+//    allocation.SaveJsonIR(DNNInfo, model_name);
+
 //    std::cout << "========================= EVALUATING =========================" << std::endl;
 //    ModelEvaluation evaluation;
 //    evaluation.EvaluateModel(DNNInfo);
@@ -168,6 +177,6 @@ int main()
 //        std::cout << "************************" << std::endl;
 //    }
 
-    std::string model_name = Models[8];
+    std::string model_name = Models[11];
     PIMCOM(model_name);
 }

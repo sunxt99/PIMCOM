@@ -22,4 +22,8 @@ const int MVMUL_delay = 100;
 const int VECTOR_delay = 50;
 const int COMM_delay = 20;
 
+const int operation_cycle_before_comm = 5;
+const int instruction_group_reload_num = 500;
+const int appointed_instruction_group_num = 30;
+
 #endif //PIMCOM_CONFIGURE_H

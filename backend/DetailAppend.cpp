@@ -45,6 +45,7 @@ void DetailAppend::PreProcess(Json::Value &DNNInfo)
     }
 }
 
+
 void DetailAppend::PrepareForInput(Json::Value &DNNInfo)
 {
     for (int i = 0; i < instruction_group_num; ++i)
