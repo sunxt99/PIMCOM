@@ -19,6 +19,9 @@ private:
     int node_num;
     Json::Value CoreList;
     Json::Value NodeList;
+    std::vector<int> post_start_address;
+    std::vector<int> post_end_address;
+    void ResetPostStartAndEndAddress(int origin_length, int assumed_core_num);
     int GetInputChannelFromOutputIndex(Json::Value & DNNInfo, int node_index, int output_index, bool is_last);
     void SchedulePreparation(Json::Value & DNNInfo);
     void ScheduleNaive(Json::Value & DNNInfo);
@@ -29,9 +32,11 @@ private:
     void ScheduleNaiveStageAct(Json::Value & DNNInfo, int instruction_group_index);
     void ScheduleNaiveStage5(Json::Value & DNNInfo, int node_index, int level_index, int instruction_group_index);
     void ScheduleNaiveStage6(Json::Value & DNNInfo, int node_index, int level_index, int mode, int instruction_group_index);
+    void ScheduleNaivePickOnePostOperation(Json::Value & DNNInfo);
+    void ScheduleNaiveScheduleOnePostOperation(Json::Value & DNNInfo, int instruction_group_index, int post_node_index);
     void AddSeparateLine(Json::Value & DNNInfo, int instruction_group_index);
-    void ShowSingleInstruction(Json::Value Instruction, int inference_index);
     void FillTheWholeInstructionGroup(Json::Value & DNNInfo);
+    int GetEffectiveInstructionGroupNum(Json::Value & DNNInfo);
 };
 
 

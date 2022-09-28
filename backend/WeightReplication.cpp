@@ -27,10 +27,10 @@ void WeightReplication::ReplicateRandomly(Json::Value& DNNInfo)
         {
             // 随机指定
             int replication_num = dis(gen);
-            DNNInfo["node_list"][i]["replication_num"] = replication_num;
+//            DNNInfo["node_list"][i]["replication_num"] = replication_num;
             // 固定倍数
             DNNInfo["node_list"][i]["replication_num"] = 2;
-//             指定倍数 [2, 3, 1]
+            // 指定倍数 [2, 3, 1]
 //            DNNInfo["node_list"][i]["replication_num"] = pre_replication_num[I++];
         }
         else if (strcmp(Node["operation"].asCString(),"OP_FC") == 0)

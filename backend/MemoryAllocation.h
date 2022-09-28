@@ -17,11 +17,12 @@ public:
 private:
     int core_num;
     Json::Value BackBone;
+    Json::Value PostPart;
     Json::Value NodeList;
-    void GetInstructionGroupNum(Json::Value & DNNInfo);
-    void GetReloadInfo(Json::Value & DNNInfo);
-    void MemoryUsageInfo(Json::Value & DNNInfo);
-    void AllocateNaive(Json::Value & DNNInfo);
+    void BaseGetReloadInfo(Json::Value & DNNInfo);
+    void BaseMemoryUsageInfo(Json::Value & DNNInfo);
+    void BaseAllocateNaive(Json::Value & DNNInfo);
+    void PostMemoryUsageInfo(Json::Value & DNNInfo);
     int GetInputChannelFromOutputIndex(Json::Value &DNNInfo, int node_index, int output_index, bool is_last);
 };
 

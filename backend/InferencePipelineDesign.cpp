@@ -239,6 +239,7 @@ void InferencePipelineDesign::RefineAugmentedNodeList(Json::Value &DNNInfo, int 
 //        }
 //    }
 //}
+std::map <int, std::vector<int>> pool_info;
 
 void InferencePipelineDesign::GetPoolInfo(Json::Value &DNNInfo)
 {
@@ -268,7 +269,7 @@ void InferencePipelineDesign::GetPoolInfo(Json::Value &DNNInfo)
             std::cout << " Output Size Doesn't Match" << std::endl;
             return;
         }
-        NodeList[n]["pool_info"]["input_index"].resize(output_W * output_H);
+        DNNInfo["5_pool_info"][n]["pool_info"]["input_index"].resize(output_W * output_H);
         int output_index = 0;
         for (int i = 0; i < output_H; ++i)
         {
@@ -296,14 +297,18 @@ void InferencePipelineDesign::GetPoolInfo(Json::Value &DNNInfo)
                     if (start_col + pool_kernel_w > input_W)
                         pool_w_num -= pool_padding_w1;
 
+                std::vector<int> output_index_vector;
                 for (int h = 0; h < pool_h_num ; ++h)
                 {
                     for (int w = 0; w < pool_w_num; ++w)
                     {
                         int position = start_address + w + h * input_W;
-                        NodeList[n]["pool_info"]["input_index"][position].append(output_index);
+                        DNNInfo["5_pool_info"][n]["pool_info"]["input_index"][position].append(output_index);
+                        DNNInfo["5_pool_info"][n]["pool_info"]["output_index"][output_index].append(position);
+                        output_index_vector.push_back(position);
                     }
                 }
+                pool_info[output_index] = output_index_vector;
                 output_index += 1;
             }
         }
