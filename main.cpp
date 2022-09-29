@@ -11,7 +11,6 @@
 #include "backend/PipelineDesignAndSchedule.h"
 #include "backend/DetailAppend.h"
 #include "backend/MemoryAllocation.h"
-
 #include "evaluation/ModelEvaluation.h"
 
 void ShowModelInfo(Json::Value & DNNInfo)
@@ -48,7 +47,6 @@ void ShowModelInfo(Json::Value & DNNInfo)
 //            std::cout << "weight: " << input_num*output_num*weight_precession/8/1024/1024 << "MB" << std::endl;
             Json::Value Output = Node["output_dim"];
             std::cout << "output: " << Output[0].asFloat() * Output[1].asFloat() * Output[2].asFloat() * Output[3].asFloat()*weight_precession/8/1024/1024 << "MB" << std::endl;
-
         }
     }
     std::cout << "FC Weight: " << FC_weights*weight_precession/8/1024/1024 << "MB" << std::endl;
@@ -60,16 +58,16 @@ void PreProcess(Json::Value & DNNInfo)
 {
     Json::Value NodeList = DNNInfo["node_list"];
     int node_num = NodeList.size();
-    // Save the "Name-Index" key-value map
+    //// Save the "Name-Index" key-value map
     std::map<std::string, int> name2index_map;
     for (int i = 0; i < node_num; ++i)
         name2index_map.insert(std::pair<std::string, int>(NodeList[i]["name"].asCString(),i));
-    // Reorder the Index
+    //// Reorder the Index
     for (int i = 0; i < node_num; ++i)
     {
         DNNInfo["node_list"][i]["index"] = i;
     }
-    // Get the Provider_Index and Consumer_Index
+    //// Get the Provider_Index and Consumer_Index
     for (int i = 0; i < node_num; ++i)
     {
         Json::Value Node = NodeList[i];
@@ -120,6 +118,7 @@ void PIMCOM(const std::string model_name)
     std::cout << "========================= MODEL INFO =========================" << std::endl;
     ShowModelInfo(DNNInfo);
     std::cout << "========================= MAPPING =========================" << std::endl;
+    clock_t timestamp = clock();
     WeightReplication replication;
     replication.ReplicateWeight(DNNInfo);
     replication.SaveJsonIR(DNNInfo, model_name);
@@ -132,24 +131,28 @@ void PIMCOM(const std::string model_name)
     ElementPlacement placement;
     placement.PlaceElement(DNNInfo);
     placement.SaveJsonIR(DNNInfo, model_name);
+    clock_t timestamp2 = clock();
+    std::cout << double(timestamp2 - timestamp) / CLOCKS_PER_SEC << "s" << std::endl;
+
     std::cout << "========================= SCHEDULING =========================" << std::endl;
     enum PipelineType PipelineUse = Inference;
     PipelineDesignAndSchedule pipeline;
     pipeline.DesignAndSchedule(DNNInfo, model_name, PipelineUse);
 
-//    DetailAppend da;
-//    da.AppendDetail(DNNInfo);
-//    da.SaveJsonIR(DNNInfo, model_name);
-//    da.ShowDetailedInstruction(DNNInfo);
+    DetailAppend da;
+    da.AppendDetail(DNNInfo);
+    da.SaveJsonIR(DNNInfo, model_name);
+    da.ShowDetailedInstruction(DNNInfo);
 
-//    MemoryAllocation allocation;
-//    allocation.AllocateMemory(DNNInfo);
-//    allocation.ShowInstruction(DNNInfo);
-//    allocation.SaveJsonIR(DNNInfo, model_name);
+    MemoryAllocation allocation;
+    allocation.AllocateMemory(DNNInfo);
+    allocation.ShowInstruction(DNNInfo);
+    allocation.SaveJsonIR(DNNInfo, model_name);
 
-//    std::cout << "========================= EVALUATING =========================" << std::endl;
-//    ModelEvaluation evaluation;
-//    evaluation.EvaluateModel(DNNInfo);
+    std::cout << "========================= EVALUATING =========================" << std::endl;
+    ModelEvaluation evaluation;
+    evaluation.EvaluateModel(DNNInfo);
+
 }
 
 int main()
@@ -177,6 +180,6 @@ int main()
 //        std::cout << "************************" << std::endl;
 //    }
 
-    std::string model_name = Models[11];
+    std::string model_name = Models[0];
     PIMCOM(model_name);
 }

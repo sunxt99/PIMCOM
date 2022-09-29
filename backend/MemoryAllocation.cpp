@@ -10,9 +10,9 @@ void MemoryAllocation::AllocateMemory(Json::Value &DNNInfo)
     BackBone = DNNInfo["6_base_instruction_ir"];
     PostPart = DNNInfo["6_post_instruction_ir"];
     NodeList = DNNInfo["5_node_list_augmented"];
-//    BaseMemoryUsageInfo(DNNInfo);
-    BaseGetReloadInfo(DNNInfo);
-    BaseAllocateNaive(DNNInfo);
+    BaseMemoryUsageInfo(DNNInfo);
+//    BaseGetReloadInfo(DNNInfo);
+//    BaseAllocateNaive(DNNInfo);
 //    PostMemoryUsageInfo(DNNInfo);
 }
 
@@ -130,11 +130,12 @@ void MemoryAllocation::BaseMemoryUsageInfo(Json::Value &DNNInfo)
                                 break;
                             }
                         }
-//                        int input_num = (instruction_group_num * operation_cycle_before_comm);
+
 //                        for (int k = 0; k < DNNInfo["6_recv_info"]["node_list"][node_index].size(); ++k)
 //                        {
 //                            if (DNNInfo["6_recv_info"]["node_list"][node_index][k]["AG_index"].asInt() == AG_index_in_total)
 //                            {
+//                                base_memory_usage_input[AG_index_in_total] += input_num * kernel_h * kernel_h * input_channel;
 //                                memory_usage += input_num * kernel_h * kernel_h * input_channel;
 //                                break;
 //                            }
@@ -193,9 +194,9 @@ void MemoryAllocation::BaseMemoryUsageInfo(Json::Value &DNNInfo)
     std::cout << "============ AG memory statistic ============" << std::endl;
     for (int j = 0; j < AG_num; ++j)
     {
-        std::cout << "AG" << j
-                  << "  input:" << std::left << std::setw(8) << base_memory_usage_input[j] * 16 / 8 / 1024 << "KB"
-                  << "  output:" << std::left  << std::setw(8) << base_memory_usage_output[j] * 16 / 8 / 1024 << "KB" << std::endl;
+//        std::cout << "AG" << j
+//                  << "  input:" << std::left << std::setw(8) << base_memory_usage_input[j] * 16 / 8 / 1024 << "KB"
+//                  << "  output:" << std::left  << std::setw(8) << base_memory_usage_output[j] * 16 / 8 / 1024 << "KB" << std::endl;
         ag_memory_sum += base_memory_usage_input[j] + base_memory_usage_output[j];
     }
     std::cout << "sum:" << ag_memory_sum * 16 / 8 / 1024 << "KB" << std::endl;

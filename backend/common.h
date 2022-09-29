@@ -13,7 +13,7 @@
 #include "json/json.h"
 #include <ctime>
 #include <set>
-
+#include <list>
 
 static void ShowSingleInstruction(Json::Value Instruction, int inf)
 {

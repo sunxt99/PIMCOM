@@ -13,13 +13,13 @@ void DetailAppend::AppendDetail(Json::Value &DNNInfo)
 {
     instruction_group_num = static_cast<int>(DNNInfo["6_core_instruction_ir"].size());
     core_num = static_cast<int>(DNNInfo["6_physical_core_AG_map"]["core_list"].size());
-    clock_t start_time = clock();
+//    clock_t start_time = clock();
     PreProcess(DNNInfo);
-    clock_t end_time_1 = clock();
+//    clock_t end_time_1 = clock();
     PrepareForInput(DNNInfo);
-    clock_t end_time_2 = clock();
-    std::cout << double(end_time_1 - start_time) / CLOCKS_PER_SEC << "s" << std::endl;
-    std::cout << double(end_time_2 - start_time) / CLOCKS_PER_SEC << "s" << std::endl;
+//    clock_t end_time_2 = clock();
+//    std::cout << double(end_time_1 - start_time) / CLOCKS_PER_SEC << "s" << std::endl;
+//    std::cout << double(end_time_2 - start_time) / CLOCKS_PER_SEC << "s" << std::endl;
 }
 
 void DetailAppend::PreProcess(Json::Value &DNNInfo)

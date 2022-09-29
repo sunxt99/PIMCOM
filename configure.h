@@ -8,8 +8,8 @@
 const int CellPrecision = 2;
 const int CrossbarW = 256;
 const int CrossbarH = 256;
-const int CoreW = 1;  // #Crossbar every row in Core (Logical)
-const int CoreH = 3;  // #Crossbar every column in Core (Logical)
+const int CoreW = 8;  // #Crossbar every row in Core (Logical)
+const int CoreH = 8;  // #Crossbar every column in Core (Logical)
 const int ChipW = 8;  // #Core every row in Chip
 const int ChipH = 8;  // #Core every column in Chip
 enum PipelineType {Inference, Row, Element};
@@ -25,8 +25,8 @@ const int COMM_delay = 20;
 // instruction_group_reload_num 几乎不会用了
 const int instruction_group_reload_num = 500;
 
-const int user_given_instruction_group_num = 5;
-const int operation_cycle_before_comm = 3;
-const int appointed_instruction_group_num = 5;
+const int user_given_instruction_group_num = 1;
+const int operation_cycle_before_comm = 1;
+const int appointed_instruction_group_num = 1;
 
 #endif //PIMCOM_CONFIGURE_H
