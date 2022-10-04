@@ -17,7 +17,8 @@ public:
     void SaveJsonIR(Json::Value & DNNInfo, std::string ModelName);
 private:
     int ResourceList[ChipW*ChipH]{};
-    void MapNaive(Json::Value &DNNInfo);
+    void MapNaiveFast(Json::Value &DNNInfo);
+    void MapNaiveSlow(Json::Value &DNNInfo);
     void Check(Json::Value &DNNInfo);
 };
 

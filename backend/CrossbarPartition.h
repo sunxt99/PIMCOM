@@ -14,7 +14,8 @@ public:
     void SaveJsonIR(Json::Value & DNNInfo, std::string ModelName);
 private:
     int Check();
-    void PartitionNaive(Json::Value & DNNInfo);
+    void PartitionNaiveSlow(Json::Value & DNNInfo);
+    void PartitionNaiveFast(Json::Value & DNNInfo);
 };
 
 

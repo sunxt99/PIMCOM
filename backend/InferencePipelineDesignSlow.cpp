@@ -5,23 +5,24 @@
 #include "InferencePipelineDesign.h"
 
 
-void InferencePipelineDesign::DesignPipeline(Json::Value & DNNInfo)
+void InferencePipelineDesign::DesignPipelineSlow(Json::Value & DNNInfo)
 {
     NodeList = DNNInfo["node_list"];
     node_num = static_cast<int>(NodeList.size());
     // 下面这一行是为了inception优化过的分层函数。运行别的网络时可以不加。
-    GetConcatMaxLevelForInception();
-    ClassifyTheNode(0, 0, 0);
-    GetAugmentedNodeList(DNNInfo);
-    RefineAugmentedNodeList(DNNInfo, 0, 0, 0, 0, 0);
-    GetPoolInfo(DNNInfo);
+    GetConcatMaxLevelForInceptionSlow();
+    ClassifyTheNodeSlow(0, 0, 0);
+    GetAugmentedNodeListSlow(DNNInfo);
+    RefineAugmentedNodeListSlow(DNNInfo, 0, 0, 0, 0, 0);
+    GetPoolInfoSlow(DNNInfo);
     DNNInfo["5_node_list_augmented"] = NodeList;
+//    ShowClassificationInfoSlow(DNNInfo);
 }
 
 
 static int concat_rest_num[MAX_AG] = {0};
 static int concat_max_level[MAX_AG] = {0};
-void InferencePipelineDesign::GetConcatMaxLevelForInception()
+void InferencePipelineDesign::GetConcatMaxLevelForInceptionSlow()
 {
     for (int i = 0; i < node_num; ++i)
     {
@@ -33,7 +34,7 @@ void InferencePipelineDesign::GetConcatMaxLevelForInception()
     }
 }
 
-void InferencePipelineDesign::ClassifyTheNode(int node_index, int level_index, int index_in_level)
+void InferencePipelineDesign::ClassifyTheNodeSlow(int node_index, int level_index, int index_in_level)
 {
     if (node_index == 0)
     {
@@ -59,7 +60,7 @@ void InferencePipelineDesign::ClassifyTheNode(int node_index, int level_index, i
             std::string consumer_op = NodeList[consumer_index]["operation"].asCString();
             if (strcmp(consumer_op.c_str(), "OP_CONV") == 0 || strcmp(consumer_op.c_str(), "OP_FC") == 0)
             {
-                ClassifyTheNode(consumer_index, level_index+1, 0);
+                ClassifyTheNodeSlow(consumer_index, level_index+1, 0);
             }
                 // 对于inception结构进行优化
             else if (strcmp(consumer_op.c_str(), "OP_CONCAT") == 0)
@@ -71,17 +72,17 @@ void InferencePipelineDesign::ClassifyTheNode(int node_index, int level_index, i
                     concat_rest_num[consumer_index]--;
                 }
                 else
-                    ClassifyTheNode(consumer_index, concat_max_level[consumer_index], index_in_level+1);
+                    ClassifyTheNodeSlow(consumer_index, concat_max_level[consumer_index], index_in_level+1);
             }
             else
-                ClassifyTheNode(consumer_index, level_index, index_in_level+1);
+                ClassifyTheNodeSlow(consumer_index, level_index, index_in_level+1);
         }
         return;
     }
 }
 
 static int node_visited[MAX_NODE] = {0};
-void InferencePipelineDesign::GetAugmentedNodeList(Json::Value &DNNInfo)
+void InferencePipelineDesign::GetAugmentedNodeListSlow(Json::Value &DNNInfo)
 {
     // 根据4_physical_crossbar_placement信息，添加CONV层或FC层的AG0_core_index和AG0_index_in_total的信息
     int crossbar_num = DNNInfo["4_physical_crossbar_placement"].size();
@@ -141,7 +142,7 @@ void InferencePipelineDesign::GetAugmentedNodeList(Json::Value &DNNInfo)
 }
 
 static int visit_refine_node_list[MAX_NODE] = {0};
-void InferencePipelineDesign::RefineAugmentedNodeList(Json::Value &DNNInfo, int node_index, int level_index, int AG0_core_index, int AG0_index_in_total, int AG0_node_index)
+void InferencePipelineDesign::RefineAugmentedNodeListSlow(Json::Value &DNNInfo, int node_index, int level_index, int AG0_core_index, int AG0_index_in_total, int AG0_node_index)
 {
     // 5_1的目的很单纯，就是得到那些后处理节点的AG0_core_index和AG0_index_in_total。是5_2的准备阶段。
     // 如果不先得到这些后处理节点的信息，而是在5_2中一边生成信息一边生成指令，就会出现某些节点的AG0信息还没获取到就先被使用的情况。不可以。
@@ -166,7 +167,7 @@ void InferencePipelineDesign::RefineAugmentedNodeList(Json::Value &DNNInfo, int 
                     int consumer_AG0_core_index = NodeList[consumer_index]["AG0_core_index"].asInt();
                     int consumer_AG0_index_in_total = NodeList[consumer_index]["AG0_index_in_total"].asInt();
                     int consumer_AG0_node_index = NodeList[consumer_index]["AG0_node_index"].asInt();
-                    RefineAugmentedNodeList(DNNInfo,  consumer_index, consumer_level, consumer_AG0_core_index, consumer_AG0_index_in_total, consumer_AG0_node_index);
+                    RefineAugmentedNodeListSlow(DNNInfo,  consumer_index, consumer_level, consumer_AG0_core_index, consumer_AG0_index_in_total, consumer_AG0_node_index);
                 }
             }
             else
@@ -177,72 +178,15 @@ void InferencePipelineDesign::RefineAugmentedNodeList(Json::Value &DNNInfo, int 
                     NodeList[consumer_index]["AG0_core_index"] = AG0_core_index;
                     NodeList[consumer_index]["AG0_index_in_total"] = AG0_index_in_total;
                     NodeList[consumer_index]["AG0_node_index"] = AG0_node_index;
-                    RefineAugmentedNodeList(DNNInfo, consumer_index, level_index, AG0_core_index, AG0_index_in_total, AG0_node_index);
+                    RefineAugmentedNodeListSlow(DNNInfo, consumer_index, level_index, AG0_core_index, AG0_index_in_total, AG0_node_index);
                 }
             }
         }
     }
 }
 
-//void InferencePipelineDesign::GetPoolInfo(Json::Value &DNInfo)
-//{
-//    int input_W = 6;
-//    int input_H = 6;
-//    int pool_kernel_w = 2;
-//    int pool_kernel_h = 2;
-//    int pool_padding_h0 = 0;
-//    int pool_padding_h1 = 0;
-//    int pool_padding_w0 = 0;
-//    int pool_padding_w1 = 0;
-//    int pool_stride_w = 2;
-//    int pool_stride_h = 2;
-//    int output_W = floor(float(input_W + pool_padding_w0 + pool_padding_w1 - pool_kernel_w) / float(pool_stride_w)) + 1;
-//    int output_H = floor(float(input_H + pool_padding_h0 + pool_padding_h1 - pool_kernel_h) / float(pool_stride_h)) + 1;
-//    int output_index = 0;
-//    for (int i = 0; i < output_H; ++i)
-//    {
-//        for (int j = 0; j < output_W; ++j)
-//        {
-//            std::cout << output_index << std::endl;
-//            int start_address = i * pool_stride_h * input_W + j *  pool_stride_w;
-//            if (i != 0)
-//                start_address -= pool_padding_h0 * input_W;
-//            if (j != 0)
-//                start_address -= pool_padding_w0;
-//            int start_row = start_address / input_W;
-//            int start_col = start_address % input_W;
-//
-//            int pool_h_num = pool_kernel_h;
-//            if (i == 0)
-//                pool_h_num -= pool_padding_h0;
-//            else if (i == output_H-1)
-//                if (start_row + pool_kernel_h > input_H)
-//                    pool_h_num -= pool_padding_h1;
-//
-//            int pool_w_num = pool_kernel_w;
-//            if (j == 0)
-//                pool_w_num -= pool_padding_w0;
-//            else if (j == output_W-1)
-//                if (start_col + pool_kernel_w > input_W)
-//                    pool_w_num -= pool_padding_w1;
-//
-//            for (int h = 0; h < pool_h_num ; ++h)
-//            {
-//                for (int w = 0; w < pool_w_num; ++w)
-//                {
-//                    int position = start_address + w + h * input_W;
-//                    std::cout << "  " << position ;
-//                }
-//            }
-//            output_index += 1;
-//            std::cout << std::endl;
-//        }
-//    }
-//}
-std::map <int, std::vector<int>> pool_info;
 
-void InferencePipelineDesign::GetPoolInfo(Json::Value &DNNInfo)
-{
+void InferencePipelineDesign::GetPoolInfoSlow(Json::Value &DNNInfo) {
     for (int n = 0; n < node_num; ++n)
     {
         Json::Value Node = NodeList[n];
@@ -269,7 +213,7 @@ void InferencePipelineDesign::GetPoolInfo(Json::Value &DNNInfo)
             std::cout << " Output Size Doesn't Match" << std::endl;
             return;
         }
-        DNNInfo["5_pool_info"][n]["pool_info"]["input_index"].resize(output_W * output_H);
+        DNNInfo["5_pool_info"][n]["pool_info"]["output_index"].resize(output_W * output_H);
         int output_index = 0;
         for (int i = 0; i < output_H; ++i)
         {
@@ -297,7 +241,6 @@ void InferencePipelineDesign::GetPoolInfo(Json::Value &DNNInfo)
                     if (start_col + pool_kernel_w > input_W)
                         pool_w_num -= pool_padding_w1;
 
-                std::vector<int> output_index_vector;
                 for (int h = 0; h < pool_h_num ; ++h)
                 {
                     for (int w = 0; w < pool_w_num; ++w)
@@ -305,18 +248,15 @@ void InferencePipelineDesign::GetPoolInfo(Json::Value &DNNInfo)
                         int position = start_address + w + h * input_W;
                         DNNInfo["5_pool_info"][n]["pool_info"]["input_index"][position].append(output_index);
                         DNNInfo["5_pool_info"][n]["pool_info"]["output_index"][output_index].append(position);
-                        output_index_vector.push_back(position);
                     }
                 }
-                pool_info[output_index] = output_index_vector;
                 output_index += 1;
             }
         }
     }
 }
 
-
-void InferencePipelineDesign::ShowClassificationInfo(Json::Value &DNNInfo)
+void InferencePipelineDesign::ShowClassificationInfoSlow(Json::Value &DNNInfo)
 {
     std::cout << "****************** Classification Result ********************" << std::endl;
     for (int i = 0; i < node_num; ++i)
@@ -325,6 +265,7 @@ void InferencePipelineDesign::ShowClassificationInfo(Json::Value &DNNInfo)
         std::cout.width(40); //设置宽度，不足用空格填充
         std::cout << NodeList[i]["name"] ;
         std::cout << "    " << NodeList[i]["level_index"] << "    " << NodeList[i]["index_in_level"] << std::endl;
+        std::cout << NodeList[i]["AG0_index_in_total"] << std::endl;
     }
 }
 

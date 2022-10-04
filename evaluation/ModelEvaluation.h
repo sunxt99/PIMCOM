@@ -5,7 +5,7 @@
 #ifndef PIMCOM_MODELEVALUATION_H
 #define PIMCOM_MODELEVALUATION_H
 
-#include "common.h"
+#include "../backend/common.h"
 #include "../configure.h"
 #include "thread"
 #include "mutex"
@@ -24,7 +24,8 @@ private:
     Json::Value InstructionGroup;
     std::map<int, int> comm_index_2_index_in_core_map;
     std::map<int, int> comm_index_2_core_index;
-    void EvaluateRecursion(Json::Value & DNNInfo, int core_index, int index_in_core);
+    void EvaluateRecursionSlow(Json::Value & DNNInfo, int core_index, int index_in_core);
+    void EvaluateRecursionFast(Json::Value & DNNInfo, int core_index, int index_in_core);
     void ShowEvaluationResult();
 };
 

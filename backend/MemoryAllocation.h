@@ -11,19 +11,29 @@
 class MemoryAllocation
 {
 public:
-    void AllocateMemory(Json::Value & DNNInfo);
+    void AllocateMemorySlow(Json::Value & DNNInfo);
+    void AllocateMemoryFast(Json::Value & DNNInfo);
     void SaveJsonIR(Json::Value & DNNInfo, std::string ModelName);
-    void ShowInstruction(Json::Value &DNNInfo);
+    void ShowInstructionSlow(Json::Value &DNNInfo);
+    void ShowInstructionFast(Json::Value &DNNInfo);
+    void SaveInstructionSlow(Json::Value &DNNInfo);
+    void SaveInstructionFast(Json::Value &DNNInfo);
 private:
     int core_num;
     Json::Value BackBone;
     Json::Value PostPart;
     Json::Value NodeList;
-    void BaseGetReloadInfo(Json::Value & DNNInfo);
-    void BaseMemoryUsageInfo(Json::Value & DNNInfo);
-    void BaseAllocateNaive(Json::Value & DNNInfo);
     void PostMemoryUsageInfo(Json::Value & DNNInfo);
-    int GetInputChannelFromOutputIndex(Json::Value &DNNInfo, int node_index, int output_index, bool is_last);
+    void BaseGetReloadInfoSlow(Json::Value & DNNInfo);
+    void BaseGetReloadInfoFast(Json::Value & DNNInfo);
+    void BaseMemoryUsageInfoSlow(Json::Value & DNNInfo);
+    void BaseMemoryUsageInfoFast(Json::Value & DNNInfo);
+    void BaseAllocateNaiveSlow(Json::Value & DNNInfo);
+    void BaseAllocateNaiveFast(Json::Value & DNNInfo);
+    int GetInputChannelFromOutputIndexSlow(Json::Value &DNNInfo, int node_index, int output_index, bool is_last);
+    int GetInputChannelFromOutputIndexFast(Json::Value &DNNInfo, int node_index, int output_index, bool is_last);
+
+    void BaseGetReloadInfoFast(INST &DNNInfo);
 };
 
 

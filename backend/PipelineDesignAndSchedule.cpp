@@ -9,22 +9,30 @@ void PipelineDesignAndSchedule::DesignAndSchedule(Json::Value & DNNInfo, std::st
     switch (PipelineUse) {
         case Inference:
         {
-            clock_t timestamp = clock();
             InferencePipelineDesign design;
-            design.DesignPipeline(DNNInfo);
-//            design.ShowWaitToActInfo(DNNInfo);
-//            design.ShowClassificationInfo(DNNInfo);
+            if (FastMode)
+                design.DesignPipelineFast(DNNInfo);
+            else
+                design.DesignPipelineSlow(DNNInfo);
             design.SaveJsonIR(DNNInfo, model_name);
-            clock_t timestamp_2 = clock();
-            std::cout << double(timestamp_2 - timestamp) / CLOCKS_PER_SEC << "s" << std::endl;
 
-            clock_t timestamp_3 = clock();
+
             InferencePipelineSchedule schedule;
-            schedule.ScheduleExecution(DNNInfo);
-            schedule.ScheduleShowInstruction(DNNInfo);
+            if (FastMode)
+                schedule.ScheduleExecutionFast(DNNInfo);
+            else
+                schedule.ScheduleExecutionSlow(DNNInfo);
+            if (FastMode)
+                schedule.ScheduleSaveInstructionFast(DNNInfo);
+            else
+                schedule.ScheduleSaveInstructionSlow(DNNInfo);
+
+//            if (FastMode)
+//                schedule.ScheduleShowInstructionFast(DNNInfo);
+//            else
+//                schedule.ScheduleShowInstructionSlow(DNNInfo);
             schedule.SaveJsonIR(DNNInfo, model_name);
-            clock_t timestamp_4 = clock();
-            std::cout << double(timestamp_4 - timestamp_3) / CLOCKS_PER_SEC << "s" << std::endl;
+
             break;
         }
         case Row:

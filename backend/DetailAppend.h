@@ -13,12 +13,15 @@ class DetailAppend
 public:
     void AppendDetail(Json::Value & DNNInfo);
     void SaveJsonIR(Json::Value & DNNInfo, std::string ModelName);
-    void ShowDetailedInstruction(Json::Value & DNNInfo);
+    void SaveDetailedInstructionFast(Json::Value & DNNInfo);
+    void SaveDetailedInstructionSlow(Json::Value & DNNInfo);
 private:
     int instruction_group_num;
     int core_num;
-    void PreProcess(Json::Value & DNNInfo);
-    void PrepareForInput(Json::Value & DNNInfo);
+    void PreProcessFast(Json::Value & DNNInfo);
+    void PreProcessSlow(Json::Value & DNNInfo);
+    void PrepareForInputFast(Json::Value & DNNInfo);
+    void PrepareForInputSlow(Json::Value & DNNInfo);
 };
 
 

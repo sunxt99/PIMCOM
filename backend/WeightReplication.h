@@ -15,7 +15,9 @@ public:
     void ReplicateWeight(Json::Value & DNNInfo);
     void SaveJsonIR(Json::Value & DNNInfo, std::string ModelName);
 private:
-    void ReplicateRandomly(Json::Value & DNNInfo);
+    void ReplicateRandomlyFast(Json::Value & DNNInfo);
+    void ReplicateRandomlySlow(Json::Value & DNNInfo);
+
 };
 
 

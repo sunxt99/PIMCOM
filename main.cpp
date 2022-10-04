@@ -13,7 +13,9 @@
 #include "backend/MemoryAllocation.h"
 #include "evaluation/ModelEvaluation.h"
 
-void ShowModelInfo(Json::Value & DNNInfo)
+std::map<int, struct PIMCOM_node> PIMCOM_node_list;
+
+void ShowModelInfoSlow(Json::Value & DNNInfo)
 {
     int node_num = DNNInfo["node_list"].size();
     std::cout << "#Nodes in total: " << node_num << std::endl;
@@ -47,6 +49,44 @@ void ShowModelInfo(Json::Value & DNNInfo)
 //            std::cout << "weight: " << input_num*output_num*weight_precession/8/1024/1024 << "MB" << std::endl;
             Json::Value Output = Node["output_dim"];
             std::cout << "output: " << Output[0].asFloat() * Output[1].asFloat() * Output[2].asFloat() * Output[3].asFloat()*weight_precession/8/1024/1024 << "MB" << std::endl;
+        }
+    }
+    std::cout << "FC Weight: " << FC_weights*weight_precession/8/1024/1024 << "MB" << std::endl;
+    std::cout << "Sum Weight: " << weights*weight_precession/8/1024/1024 << "MB" << std::endl;
+    std::cout << "FC Ratio: " << FC_weights/weights*100 << "%" << std::endl;
+}
+
+void ShowModelInfoFast(Json::Value & DNNInfo)
+{
+    int node_num = PIMCOM_node_list.size();
+    std::cout << "#Nodes in total: " << node_num << std::endl;
+    float weight_precession = 16;
+    float weights = 0.0;
+    float FC_weights = 0.0;
+    for (int i = 0; i < node_num; ++i)
+    {
+        if(PIMCOM_node_list[i].operation == "OP_CONV")
+        {
+            std::cout << i <<std::endl;
+            float kernel = PIMCOM_node_list[i].param.kernel_h;
+            float input_channel = PIMCOM_node_list[i].param.input_channel;
+            float output_channel = PIMCOM_node_list[i].param.output_channel;
+            weights += kernel * kernel * input_channel * output_channel;
+            std::vector<int> Input = PIMCOM_node_list[i].input_dim;
+            std::cout << "input: " << float(Input[0]) * float(Input[1]) * float(Input[2]) * float(Input[3]) *weight_precession/8/1024 << "KB" << std::endl;
+            std::vector<int> Output = PIMCOM_node_list[i].output_dim;
+            std::cout << "output: " << float(Output[0]) * float(Output[1]) * float(Output[2]) * float(Output[3]) *weight_precession/8/1024 << "KB" << std::endl;
+
+        }
+        else if (PIMCOM_node_list[i].operation == "OP_FC")
+        {
+            float input_num = PIMCOM_node_list[i].param.num_input;
+            float output_num = PIMCOM_node_list[i].param.num_output;
+            weights += input_num * output_num;
+            FC_weights += input_num * output_num;
+            std::vector<int> Output = PIMCOM_node_list[i].output_dim;
+            std::cout << "output: " << float(Output[0]) * float(Output[1]) * float(Output[2]) * float(Output[3]) *weight_precession/8/1024/1024 << "MB" << std::endl;
+
         }
     }
     std::cout << "FC Weight: " << FC_weights*weight_precession/8/1024/1024 << "MB" << std::endl;
@@ -103,6 +143,81 @@ void PreProcess(Json::Value & DNNInfo)
     }
 }
 
+void GetStructNodeListFromJson(Json::Value & DNNInfo)
+{
+    Json::Value NodeList = DNNInfo["node_list"];
+    int node_num = NodeList.size();
+    for (int i = 0; i < node_num; ++i)
+    {
+        PIMCOM_node_list[i].bitwidth = NodeList[i]["bitwidth"].asInt();
+        PIMCOM_node_list[i].consumer_num = NodeList[i]["consumer_num"].asInt();
+        PIMCOM_node_list[i].index = NodeList[i]["index"].asInt();
+        PIMCOM_node_list[i].input_dim_num = NodeList[i]["input_dim_num"].asInt();
+        PIMCOM_node_list[i].name = NodeList[i]["name"].asCString();
+        PIMCOM_node_list[i].operation = NodeList[i]["operation"].asCString();
+        PIMCOM_node_list[i].output_dim_num = NodeList[i]["output_dim_num"].asInt();
+        PIMCOM_node_list[i].provider_num = NodeList[i]["provider_num"].asInt();
+
+        for (int j = 0; j < PIMCOM_node_list[i].provider_num; ++j)
+            PIMCOM_node_list[i].provider_index.push_back(NodeList[i]["provider_index"][j].asInt());
+        for (int j = 0; j < PIMCOM_node_list[i].consumer_num; ++j)
+            PIMCOM_node_list[i].consumer_index.push_back(NodeList[i]["consumer_index"][j].asInt());
+        for (int j = 0; j < PIMCOM_node_list[i].input_dim_num; ++j)
+            PIMCOM_node_list[i].input_dim.push_back(NodeList[i]["input_dim"][j].asInt());
+        for (int j = 0; j < PIMCOM_node_list[i].output_dim_num; ++j)
+            PIMCOM_node_list[i].output_dim.push_back(NodeList[i]["output_dim"][j].asInt());
+
+        if (strcmp(NodeList[i]["operation"].asCString(), "OP_FC") == 0)
+        {
+            PIMCOM_node_list[i].param.num_input = NodeList[i]["param"]["num_input"].asInt();
+            PIMCOM_node_list[i].param.num_output = NodeList[i]["param"]["num_output"].asInt();
+        }
+        else if (strcmp(NodeList[i]["operation"].asCString(), "OP_CONV")==0 || strcmp(NodeList[i]["operation"].asCString(), "OP_POOL")==0)
+        {
+            PIMCOM_node_list[i].param.kernel_h = NodeList[i]["param"]["kernel_h"].asInt();
+            PIMCOM_node_list[i].param.kernel_w = NodeList[i]["param"]["kernel_w"].asInt();
+            PIMCOM_node_list[i].param.stride_h = NodeList[i]["param"]["stride_h"].asInt();
+            PIMCOM_node_list[i].param.stride_w = NodeList[i]["param"]["stride_w"].asInt();
+            PIMCOM_node_list[i].param.pad_h0 = NodeList[i]["param"]["pad_h0"].asInt();
+            PIMCOM_node_list[i].param.pad_h1 = NodeList[i]["param"]["pad_h1"].asInt();
+            PIMCOM_node_list[i].param.pad_w0 = NodeList[i]["param"]["pad_w0"].asInt();
+            PIMCOM_node_list[i].param.pad_w1 = NodeList[i]["param"]["pad_w1"].asInt();
+
+            if (strcmp(NodeList[i]["operation"].asCString(), "OP_CONV")==0)
+            {
+                PIMCOM_node_list[i].param.dilation_h = NodeList[i]["param"]["dilation_h"].asInt();
+                PIMCOM_node_list[i].param.dilation_w = NodeList[i]["param"]["dilation_w"].asInt();
+                PIMCOM_node_list[i].param.input_channel = NodeList[i]["param"]["input_channel"].asInt();
+                PIMCOM_node_list[i].param.output_channel = NodeList[i]["param"]["output_channel"].asInt();
+                PIMCOM_node_list[i].param.group = NodeList[i]["param"]["group"].asInt();
+                PIMCOM_node_list[i].param.activation = NodeList[i]["param"]["activation"].asInt();
+                PIMCOM_node_list[i].param.wino_off = NodeList[i]["param"]["wino_off"].asInt();
+            }
+            else
+            {
+                PIMCOM_node_list[i].param.pool_method = NodeList[i]["param"]["pool_method"].asInt();
+            }
+        }
+        else if (strcmp(NodeList[i]["operation"].asCString(), "OP_FLATTEN")==0)
+        {
+            PIMCOM_node_list[i].param.axis = NodeList[i]["param"]["axis"].asInt();
+            PIMCOM_node_list[i].param.end_axis = NodeList[i]["param"]["end_axis"].asInt();
+        }
+        else if (strcmp(NodeList[i]["operation"].asCString(), "OP_ELTWISE")==0)
+        {
+            PIMCOM_node_list[i].param.eletype = NodeList[i]["param"]["eletype"].asInt();
+            PIMCOM_node_list[i].param.caffe_flavor = NodeList[i]["param"]["caffe_flavor"].asInt();
+            PIMCOM_node_list[i].param.shift = NodeList[i]["param"]["shift"].asFloat();
+            PIMCOM_node_list[i].param.power = NodeList[i]["param"]["power"].asFloat();
+            PIMCOM_node_list[i].param.scale = NodeList[i]["param"]["scale"].asFloat();
+        }
+    }
+}
+
+//    clock_t timestamp_1 = clock();
+//    clock_t timestamp_2 = clock();
+//    std::cout << double(timestamp_2 - timestamp_1) / CLOCKS_PER_SEC << "s" << std::endl;
+
 void PIMCOM(const std::string model_name)
 {
     Json::Reader jsonReader;
@@ -115,44 +230,59 @@ void PIMCOM(const std::string model_name)
     }
 
     PreProcess(DNNInfo);
+    GetStructNodeListFromJson(DNNInfo);
+
     std::cout << "========================= MODEL INFO =========================" << std::endl;
-    ShowModelInfo(DNNInfo);
+//    ShowModelInfoFast(DNNInfo);
+
     std::cout << "========================= MAPPING =========================" << std::endl;
-    clock_t timestamp = clock();
     WeightReplication replication;
     replication.ReplicateWeight(DNNInfo);
     replication.SaveJsonIR(DNNInfo, model_name);
+
+
     CrossbarPartition partition;
     partition.PartitionCrossbar(DNNInfo);
     partition.SaveJsonIR(DNNInfo,model_name);
+
     HierarchyMapping mapping;
+
     mapping.MapHierarchy(DNNInfo);
     mapping.SaveJsonIR(DNNInfo, model_name);
+
     ElementPlacement placement;
     placement.PlaceElement(DNNInfo);
     placement.SaveJsonIR(DNNInfo, model_name);
-    clock_t timestamp2 = clock();
-    std::cout << double(timestamp2 - timestamp) / CLOCKS_PER_SEC << "s" << std::endl;
+
 
     std::cout << "========================= SCHEDULING =========================" << std::endl;
     enum PipelineType PipelineUse = Inference;
     PipelineDesignAndSchedule pipeline;
     pipeline.DesignAndSchedule(DNNInfo, model_name, PipelineUse);
 
-    DetailAppend da;
-    da.AppendDetail(DNNInfo);
-    da.SaveJsonIR(DNNInfo, model_name);
-    da.ShowDetailedInstruction(DNNInfo);
 
     MemoryAllocation allocation;
-    allocation.AllocateMemory(DNNInfo);
-    allocation.ShowInstruction(DNNInfo);
+    if (FastMode)
+        allocation.AllocateMemoryFast(DNNInfo);
+    else
+        allocation.AllocateMemorySlow(DNNInfo);
+    if (FastMode)
+        allocation.SaveInstructionFast(DNNInfo);
+    else
+        allocation.SaveInstructionSlow(DNNInfo);
     allocation.SaveJsonIR(DNNInfo, model_name);
 
-    std::cout << "========================= EVALUATING =========================" << std::endl;
-    ModelEvaluation evaluation;
-    evaluation.EvaluateModel(DNNInfo);
+    DetailAppend da;
+    da.AppendDetail(DNNInfo);
+    if (FastMode)
+        da.SaveDetailedInstructionFast(DNNInfo);
+    else
+        da.SaveDetailedInstructionSlow(DNNInfo);
+    da.SaveJsonIR(DNNInfo, model_name);
 
+//    std::cout << "========================= EVALUATING =========================" << std::endl;
+//    ModelEvaluation evaluation;
+//    evaluation.EvaluateModel(DNNInfo);
 }
 
 int main()
@@ -179,7 +309,6 @@ int main()
 //        PIMCOM(model_name);
 //        std::cout << "************************" << std::endl;
 //    }
-
-    std::string model_name = Models[0];
+    std::string model_name = Models[2];
     PIMCOM(model_name);
 }

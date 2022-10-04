@@ -14,8 +14,10 @@ public:
     void PlaceElement(Json::Value & DNNInfo);
     void SaveJsonIR(Json::Value & DNNInfo, std::string ModelName);
 private:
-    void PlaceCoreNaive(Json::Value & DNNInfo);
-    void PlaceCrossbarNaive(Json::Value & DNNInfo);
+    void PlaceCoreNaiveFast(Json::Value & DNNInfo);
+    void PlaceCrossbarNaiveFast(Json::Value & DNNInfo);
+    void PlaceCoreNaiveSlow(Json::Value & DNNInfo);
+    void PlaceCrossbarNaiveSlow(Json::Value & DNNInfo);
 };
 
 

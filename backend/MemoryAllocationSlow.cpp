@@ -4,19 +4,18 @@
 
 #include "MemoryAllocation.h"
 
-void MemoryAllocation::AllocateMemory(Json::Value &DNNInfo)
+void MemoryAllocation::AllocateMemorySlow(Json::Value &DNNInfo)
 {
     core_num = static_cast<int>(DNNInfo["3_virtual_core_crossbar_map"].size());
     BackBone = DNNInfo["6_base_instruction_ir"];
     PostPart = DNNInfo["6_post_instruction_ir"];
     NodeList = DNNInfo["5_node_list_augmented"];
-    BaseMemoryUsageInfo(DNNInfo);
-//    BaseGetReloadInfo(DNNInfo);
-//    BaseAllocateNaive(DNNInfo);
-//    PostMemoryUsageInfo(DNNInfo);
+//    BaseMemoryUsageInfoSlow(DNNInfo);
+    BaseGetReloadInfoSlow(DNNInfo);
+    BaseAllocateNaiveSlow(DNNInfo);
 }
 
-int MemoryAllocation::GetInputChannelFromOutputIndex(Json::Value &DNNInfo, int node_index, int output_index, bool is_last)
+int MemoryAllocation::GetInputChannelFromOutputIndexSlow(Json::Value &DNNInfo, int node_index, int output_index, bool is_last)
 {
     Json::Value Node = NodeList[node_index];
     Json::Value Params = Node["param"];
@@ -76,12 +75,12 @@ int MemoryAllocation::GetInputChannelFromOutputIndex(Json::Value &DNNInfo, int n
     return position;
 }
 
-int base_visited_record[MAX_AG] = {0};
-float base_memory_usage_input[MAX_AG] = {0};
-float base_memory_usage_output[MAX_AG] = {0};
-float base_memory_usage_node[MAX_NODE] = {0};
-float base_memory_usage_recv[MAX_CORE] = {0};
-void MemoryAllocation::BaseMemoryUsageInfo(Json::Value &DNNInfo)
+static int base_visited_record[MAX_AG] = {0};
+static float base_memory_usage_input[MAX_AG] = {0};
+static float base_memory_usage_output[MAX_AG] = {0};
+static float base_memory_usage_node[MAX_NODE] = {0};
+static float base_memory_usage_recv[MAX_CORE] = {0};
+void MemoryAllocation::BaseMemoryUsageInfoSlow(Json::Value &DNNInfo)
 {
     std::cout << "============ core memory statistic ============" << std::endl;
     float core_memory_sum = 0.0;
@@ -236,7 +235,7 @@ void MemoryAllocation::BaseMemoryUsageInfo(Json::Value &DNNInfo)
 }
 
 static int core_AG_num[MAX_CORE] = {0};
-void MemoryAllocation::BaseGetReloadInfo(Json::Value &DNNInfo)
+void MemoryAllocation::BaseGetReloadInfoSlow(Json::Value &DNNInfo)
 {
     int effective_node_num = DNNInfo["2_effective_node"].size();
     for (int i = 0; i < effective_node_num; ++i)
@@ -278,12 +277,12 @@ void MemoryAllocation::BaseGetReloadInfo(Json::Value &DNNInfo)
                     {
                         int AG_index_in_core = core_AG_num[core_index];
                         core_AG_num[core_index]++;
-                        DNNInfo["8_reload_info"]["core_list"][core_index]["AG_list"][AG_index_in_core] = Reload;
-                        DNNInfo["8_reload_info"]["core_list"][core_index]["AG_list"][AG_index_in_core]["node_index"] = effective_node_index;
-                        DNNInfo["8_reload_info"]["core_list"][core_index]["AG_list"][AG_index_in_core]["replication_index"] = replication_index;
-                        DNNInfo["8_reload_info"]["core_list"][core_index]["AG_list"][AG_index_in_core]["core_index"] = core_index;
-                        DNNInfo["8_reload_info"]["core_list"][core_index]["AG_list"][AG_index_in_core]["AG_index"] = AG_index;
-                        DNNInfo["8_reload_info"]["core_list"][core_index]["AG_list"][AG_index_in_core]["AG_index_in_replication"] = AG_index_in_replication;
+                        DNNInfo["7_reload_info"]["core_list"][core_index]["AG_list"][AG_index_in_core] = Reload;
+                        DNNInfo["7_reload_info"]["core_list"][core_index]["AG_list"][AG_index_in_core]["node_index"] = effective_node_index;
+                        DNNInfo["7_reload_info"]["core_list"][core_index]["AG_list"][AG_index_in_core]["replication_index"] = replication_index;
+                        DNNInfo["7_reload_info"]["core_list"][core_index]["AG_list"][AG_index_in_core]["core_index"] = core_index;
+                        DNNInfo["7_reload_info"]["core_list"][core_index]["AG_list"][AG_index_in_core]["AG_index"] = AG_index;
+                        DNNInfo["7_reload_info"]["core_list"][core_index]["AG_list"][AG_index_in_core]["AG_index_in_replication"] = AG_index_in_replication;
                         break;
                     }
                 }
@@ -301,20 +300,20 @@ void MemoryAllocation::BaseGetReloadInfo(Json::Value &DNNInfo)
                 int start_offset_element = DNNInfo["6_recv_info"]["node_list"][effective_node_index][j]["start_offset_element"].asInt();
                 int AG_index_in_core = core_AG_num[core_index];
                 core_AG_num[core_index]++;
-                DNNInfo["8_reload_info"]["core_list"][core_index]["AG_list"][AG_index_in_core]["AG_index"] = AG_index;
-                DNNInfo["8_reload_info"]["core_list"][core_index]["AG_list"][AG_index_in_core]["core_index"] = core_index;
-                DNNInfo["8_reload_info"]["core_list"][core_index]["AG_list"][AG_index_in_core]["node_index"] = node_index;
-                DNNInfo["8_reload_info"]["core_list"][core_index]["AG_list"][AG_index_in_core]["recv_element"] = recv_element;
-                DNNInfo["8_reload_info"]["core_list"][core_index]["AG_list"][AG_index_in_core]["start_offset_element"] = start_offset_element;
+                DNNInfo["7_reload_info"]["core_list"][core_index]["AG_list"][AG_index_in_core]["AG_index"] = AG_index;
+                DNNInfo["7_reload_info"]["core_list"][core_index]["AG_list"][AG_index_in_core]["core_index"] = core_index;
+                DNNInfo["7_reload_info"]["core_list"][core_index]["AG_list"][AG_index_in_core]["node_index"] = node_index;
+                DNNInfo["7_reload_info"]["core_list"][core_index]["AG_list"][AG_index_in_core]["recv_element"] = recv_element;
+                DNNInfo["7_reload_info"]["core_list"][core_index]["AG_list"][AG_index_in_core]["start_offset_element"] = start_offset_element;
             }
         }
     }
 }
 
-void MemoryAllocation::BaseAllocateNaive(Json::Value &DNNInfo)
+void MemoryAllocation::BaseAllocateNaiveSlow(Json::Value &DNNInfo)
 {
     int instruction_group_num = BackBone.size();
-    DNNInfo["8_base_instruction_with_reload"].resize(instruction_group_num);
+    DNNInfo["7_base_instruction_with_reload"].resize(instruction_group_num);
     for (int i = 0; i < instruction_group_num; ++i)
     {
         int reload_index = i / appointed_instruction_group_num;
@@ -323,21 +322,21 @@ void MemoryAllocation::BaseAllocateNaive(Json::Value &DNNInfo)
             for (int j = 0; j < core_num; ++j)
             {
                 // LOAD
-                int reload_AG_num = DNNInfo["8_reload_info"]["core_list"][j]["AG_list"].size();
+                int reload_AG_num = DNNInfo["7_reload_info"]["core_list"][j]["AG_list"].size();
                 for (int k = 0; k < reload_AG_num; ++k)
                 {
-                    int node_index = DNNInfo["8_reload_info"]["core_list"][j]["AG_list"][k]["node_index"].asInt();
+                    int node_index = DNNInfo["7_reload_info"]["core_list"][j]["AG_list"][k]["node_index"].asInt();
                     if (strcmp(NodeList[node_index]["operation"].asCString(), "OP_CONV") == 0)
                     {
-                        int this_ag_max_reload_num = DNNInfo["8_reload_info"]["core_list"][j]["AG_list"][k]["reload"].size();
+                        int this_ag_max_reload_num = DNNInfo["7_reload_info"]["core_list"][j]["AG_list"][k]["reload"].size();
                         if (reload_index >= this_ag_max_reload_num)
                             continue;
-                        int AG_index = DNNInfo["8_reload_info"]["core_list"][j]["AG_list"][k]["AG_index"].asInt();
+                        int AG_index = DNNInfo["7_reload_info"]["core_list"][j]["AG_list"][k]["AG_index"].asInt();
                         // input_cycle is output_channel_index
-                        int input_cycle_start = DNNInfo["8_reload_info"]["core_list"][j]["AG_list"][k]["reload"][reload_index]["start"].asInt();
-                        int input_cycle_end = DNNInfo["8_reload_info"]["core_list"][j]["AG_list"][k]["reload"][reload_index]["end"].asInt();
-                        int input_channel_start = GetInputChannelFromOutputIndex(DNNInfo, node_index, input_cycle_start, 0);
-                        int input_channel_end = GetInputChannelFromOutputIndex(DNNInfo, node_index, input_cycle_end, 1);
+                        int input_cycle_start = DNNInfo["7_reload_info"]["core_list"][j]["AG_list"][k]["reload"][reload_index]["start"].asInt();
+                        int input_cycle_end = DNNInfo["7_reload_info"]["core_list"][j]["AG_list"][k]["reload"][reload_index]["end"].asInt();
+                        int input_channel_start = GetInputChannelFromOutputIndexSlow(DNNInfo, node_index, input_cycle_start, 0);
+                        int input_channel_end = GetInputChannelFromOutputIndexSlow(DNNInfo, node_index, input_cycle_end, 1);
                         int input_channel_length = NodeList[node_index]["param"]["input_channel"].asInt();
 
                         Json::Value Instruction_ld;
@@ -357,15 +356,15 @@ void MemoryAllocation::BaseAllocateNaive(Json::Value &DNNInfo)
                         Instruction_ld["offset"] = offset_ld;
                         Instruction_ld["element_num"] = (input_channel_end-input_channel_start+1) * input_channel_length;
                         Instruction_ld["instruction_group_index"] = i;
-                        DNNInfo["8_base_instruction_with_reload"][i]["core_list"][j].append(Instruction_ld);
+                        DNNInfo["7_base_instruction_with_reload"][i]["core_list"][j].append(Instruction_ld);
                     }
                     else if(strcmp(NodeList[node_index]["operation"].asCString(), "OP_FC") == 0)
                     {
                         if (reload_index >= 1)
                             continue;
-                        int AG_index = DNNInfo["8_reload_info"]["core_list"][j]["AG_list"][k]["AG_index"].asInt();
-                        int recv_element = DNNInfo["8_reload_info"]["core_list"][j]["AG_list"][k]["recv_element"].asInt();
-                        int start_offset_element = DNNInfo["8_reload_info"]["core_list"][j]["AG_list"][k]["start_offset_element"].asInt();
+                        int AG_index = DNNInfo["7_reload_info"]["core_list"][j]["AG_list"][k]["AG_index"].asInt();
+                        int recv_element = DNNInfo["7_reload_info"]["core_list"][j]["AG_list"][k]["recv_element"].asInt();
+                        int start_offset_element = DNNInfo["7_reload_info"]["core_list"][j]["AG_list"][k]["start_offset_element"].asInt();
 
                         Json::Value Instruction_ld;
                         Instruction_ld["level_index"] = NodeList[node_index]["level_index"];
@@ -379,7 +378,7 @@ void MemoryAllocation::BaseAllocateNaive(Json::Value &DNNInfo)
                         Instruction_ld["offset"] = offset_ld;
                         Instruction_ld["element_num"] = recv_element;
                         Instruction_ld["instruction_group_index"] = i;
-                        DNNInfo["8_base_instruction_with_reload"][i]["core_list"][j].append(Instruction_ld);
+                        DNNInfo["7_base_instruction_with_reload"][i]["core_list"][j].append(Instruction_ld);
                     }
                 }
                 Json::Value InstructionIRList = BackBone[i]["core_list"][j]["instruction_ir_list"];
@@ -387,7 +386,7 @@ void MemoryAllocation::BaseAllocateNaive(Json::Value &DNNInfo)
                 for (int k = 0; k < instruction_ir_num; ++k)
                 {
                     Json::Value tmpInstruction = InstructionIRList[k];
-                    DNNInfo["8_base_instruction_with_reload"][i]["core_list"][j].append(tmpInstruction);
+                    DNNInfo["7_base_instruction_with_reload"][i]["core_list"][j].append(tmpInstruction);
                 }
             }
         }
@@ -400,25 +399,25 @@ void MemoryAllocation::BaseAllocateNaive(Json::Value &DNNInfo)
                 for (int k = 0; k < instruction_ir_num; ++k)
                 {
                     Json::Value tmpInstruction = InstructionIRList[k];
-                    DNNInfo["8_base_instruction_with_reload"][i]["core_list"][j].append(tmpInstruction);
+                    DNNInfo["7_base_instruction_with_reload"][i]["core_list"][j].append(tmpInstruction);
                 }
 
                 // STORE
-                int reload_AG_num = DNNInfo["8_reload_info"]["core_list"][j]["AG_list"].size();
+                int reload_AG_num = DNNInfo["7_reload_info"]["core_list"][j]["AG_list"].size();
                 for (int k = 0; k < reload_AG_num; ++k)
                 {
-                    int node_index = DNNInfo["8_reload_info"]["core_list"][j]["AG_list"][k]["node_index"].asInt();
+                    int node_index = DNNInfo["7_reload_info"]["core_list"][j]["AG_list"][k]["node_index"].asInt();
                     if (strcmp(NodeList[node_index]["operation"].asCString(), "OP_CONV") == 0)
                     {
-                        int this_ag_max_reload_num = DNNInfo["8_reload_info"]["core_list"][j]["AG_list"][k]["reload"].size();
+                        int this_ag_max_reload_num = DNNInfo["7_reload_info"]["core_list"][j]["AG_list"][k]["reload"].size();
                         if (reload_index >= this_ag_max_reload_num)
                             continue;
-                        int AG_index = DNNInfo["8_reload_info"]["core_list"][j]["AG_list"][k]["AG_index"].asInt();
-                        int AG_index_in_replication = DNNInfo["8_reload_info"]["core_list"][j]["AG_list"][k]["AG_index_in_replication"].asInt();
+                        int AG_index = DNNInfo["7_reload_info"]["core_list"][j]["AG_list"][k]["AG_index"].asInt();
+                        int AG_index_in_replication = DNNInfo["7_reload_info"]["core_list"][j]["AG_list"][k]["AG_index_in_replication"].asInt();
                         if (AG_index_in_replication != 0)
                             continue;
-                        int output_channel_index_start = DNNInfo["8_reload_info"]["core_list"][j]["AG_list"][k]["reload"][reload_index]["start"].asInt();
-                        int output_channel_index_end = DNNInfo["8_reload_info"]["core_list"][j]["AG_list"][k]["reload"][reload_index]["end"].asInt();
+                        int output_channel_index_start = DNNInfo["7_reload_info"]["core_list"][j]["AG_list"][k]["reload"][reload_index]["start"].asInt();
+                        int output_channel_index_end = DNNInfo["7_reload_info"]["core_list"][j]["AG_list"][k]["reload"][reload_index]["end"].asInt();
                         int output_channel_length = NodeList[node_index]["param"]["output_channel"].asInt();
 
                         Json::Value Instruction_st;
@@ -433,15 +432,15 @@ void MemoryAllocation::BaseAllocateNaive(Json::Value &DNNInfo)
                         Instruction_st["offset"] = offset_ld;
                         Instruction_st["element_num"] = (output_channel_index_end - output_channel_index_start + 1) * output_channel_length;
                         Instruction_st["instruction_group_index"] = i;
-                        DNNInfo["8_base_instruction_with_reload"][i]["core_list"][j].append(Instruction_st);
+                        DNNInfo["7_base_instruction_with_reload"][i]["core_list"][j].append(Instruction_st);
                     }
                     else if(strcmp(NodeList[node_index]["operation"].asCString(), "OP_FC") == 0)
                     {
                         if (reload_index >= 1)
                             continue;
-                        int AG_index = DNNInfo["8_reload_info"]["core_list"][j]["AG_list"][k]["AG_index"].asInt();
-                        int recv_element = DNNInfo["8_reload_info"]["core_list"][j]["AG_list"][k]["recv_element"].asInt();
-                        int start_offset_element = DNNInfo["8_reload_info"]["core_list"][j]["AG_list"][k]["start_offset_element"].asInt();
+                        int AG_index = DNNInfo["7_reload_info"]["core_list"][j]["AG_list"][k]["AG_index"].asInt();
+                        int recv_element = DNNInfo["7_reload_info"]["core_list"][j]["AG_list"][k]["recv_element"].asInt();
+                        int start_offset_element = DNNInfo["7_reload_info"]["core_list"][j]["AG_list"][k]["start_offset_element"].asInt();
 
                         Json::Value Instruction_st;
                         Instruction_st["level_index"] = NodeList[node_index]["level_index"];
@@ -455,7 +454,7 @@ void MemoryAllocation::BaseAllocateNaive(Json::Value &DNNInfo)
                         Instruction_st["offset"] = offset_ld;
                         Instruction_st["element_num"] = recv_element;
                         Instruction_st["instruction_group_index"] = i;
-                        DNNInfo["8_base_instruction_with_reload"][i]["core_list"][j].append(Instruction_st);
+                        DNNInfo["7_base_instruction_with_reload"][i]["core_list"][j].append(Instruction_st);
                     }
                 }
             }
@@ -469,7 +468,7 @@ void MemoryAllocation::BaseAllocateNaive(Json::Value &DNNInfo)
                 for (int k = 0; k < instruction_ir_num; ++k)
                 {
                     Json::Value tmpInstruction = InstructionIRList[k];
-                    DNNInfo["8_base_instruction_with_reload"][i]["core_list"][j].append(tmpInstruction);
+                    DNNInfo["7_base_instruction_with_reload"][i]["core_list"][j].append(tmpInstruction);
                 }
             }
         }
@@ -505,18 +504,14 @@ void MemoryAllocation::BaseAllocateNaive(Json::Value &DNNInfo)
 
 
 
-
-
-
-
-int inference_start = 100;
-int inference_end = 100;
-void MemoryAllocation::ShowInstruction(Json::Value &DNNInfo)
+static int inference_start = 100;
+static int inference_end = 100;
+void MemoryAllocation::ShowInstructionSlow(Json::Value &DNNInfo)
 {
     for (int inf = inference_start; inf <= inference_end ; ++inf)
     {
         std::cout << "***************************************************  inference_index " << inf << " *************************************************" << std::endl;
-        int instruction_group_num = static_cast<int>(DNNInfo["8_base_instruction_with_reload"].size());
+        int instruction_group_num = static_cast<int>(DNNInfo["7_base_instruction_with_reload"].size());
         for (int i = 0; i < instruction_group_num; ++i)
         {
             std::cout << std::endl;
@@ -524,27 +519,58 @@ void MemoryAllocation::ShowInstruction(Json::Value &DNNInfo)
             for (int j = 0; j < core_num; ++j)
             {
                 std::cout << "core " << j << std::endl;
-                int instruction_num = DNNInfo["8_base_instruction_with_reload"][i]["core_list"][j].size();
+                int instruction_num = DNNInfo["7_base_instruction_with_reload"][i]["core_list"][j].size();
                 for (int k = 0; k < instruction_num; ++k)
                 {
-                    Json::Value Instruction = DNNInfo["8_base_instruction_with_reload"][i]["core_list"][j][k];
+                    Json::Value Instruction = DNNInfo["7_base_instruction_with_reload"][i]["core_list"][j][k];
                     int instruction_level_index = Instruction["level_index"].asInt();
                     if (instruction_level_index > inf)
                     {
                         continue;
                     }
-                    std::string Operation = Instruction["operation"].asCString();
-                    ShowSingleInstruction(Instruction, inf);
+                    ShowSingleInstructionSlow(Instruction, inf);
                 }
             }
         }
     }
 }
 
+
+void MemoryAllocation::SaveInstructionSlow(Json::Value &DNNInfo)
+{
+    std::ofstream OutFile("../slow2.txt", std::ios::out | std::ios::trunc);
+
+    for (int inf = inference_start; inf <= inference_end ; ++inf)
+    {
+        OutFile << "***************************************************  inference_index " << inf << " *************************************************" << std::endl;
+        int instruction_group_num = static_cast<int>(DNNInfo["7_base_instruction_with_reload"].size());
+        for (int i = 0; i < instruction_group_num; ++i)
+        {
+            OutFile << "========================================= base instruction_group " << i << " =========================================" << std::endl;
+            for (int j = 0; j < core_num; ++j)
+            {
+                OutFile << "core " << j << std::endl;
+                int instruction_num = DNNInfo["7_base_instruction_with_reload"][i]["core_list"][j].size();
+                for (int k = 0; k < instruction_num; ++k)
+                {
+                    Json::Value Instruction = DNNInfo["7_base_instruction_with_reload"][i]["core_list"][j][k];
+                    int instruction_level_index = Instruction["level_index"].asInt();
+                    if (instruction_level_index > inf)
+                    {
+                        continue;
+                    }
+                    SaveSingleInstructionSlow(OutFile, Instruction, inf);
+                }
+            }
+        }
+    }
+    OutFile.close();
+}
+
 void MemoryAllocation::SaveJsonIR(Json::Value &DNNInfo, std::string ModelName)
 {
     std::string strJson = DNNInfo.toStyledString();
-    std::ofstream fob("../ir/"+ModelName+"/8_ma.json", std::ios::trunc | std::ios::out);
+    std::ofstream fob("../ir/"+ModelName+"/7_ma.json", std::ios::trunc | std::ios::out);
     if (fob.is_open())
     {
         fob.write(strJson.c_str(), strJson.length());
