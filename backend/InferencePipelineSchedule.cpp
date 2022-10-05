@@ -40,15 +40,15 @@ static int node_offset_instruction_group[MAX_AG] = {0};
 static int node_offset_inference[MAX_AG] = {0};
 static int node_offset_inference_old[MAX_AG] = {0};
 
-void InferencePipelineSchedule::ScheduleExecutionFast(Json::Value &DNNInfo)
+void InferencePipelineSchedule::ScheduleExecution()
 {
     core_num = PIMCOM_3_virtual_core_crossbar_map.size();
     node_num = PIMCOM_node_list.size();
-    SchedulePreparationFast(DNNInfo);
-    ScheduleNaiveFast(DNNInfo);
+    SchedulePreparation();
+    ScheduleNaive();
 }
 
-void InferencePipelineSchedule::SchedulePreparationFast(Json::Value &DNNInfo)
+void InferencePipelineSchedule::SchedulePreparation()
 {
     //// 注意Naive写法是针对没有split_AG的情况。每个AG只有一个对应的Core
     // 根据4_physical_crossbar_placement信息提供的Core上Crossbar的关系得到Core上AG的关系
@@ -117,7 +117,6 @@ void InferencePipelineSchedule::SchedulePreparationFast(Json::Value &DNNInfo)
         int pre_AG_index_in_replication = PIMCOM_6_physical_core_AG_map.core_list[i].AG_list[0].AG_index_in_replication;
 
         int pre_core_index = i;
-//        Json::Value RecvInfo;
         int pre_AG_height = PIMCOM_3_hierarchy_map.whole[pre_AG_index][0].height_end - PIMCOM_3_hierarchy_map.whole[pre_AG_index][0].height_start + 1;
         struct node_recv_info RecvInfo;
         RecvInfo.replication_index = pre_replication_index;
@@ -176,19 +175,19 @@ void InferencePipelineSchedule::SchedulePreparationFast(Json::Value &DNNInfo)
         }
     }
 
-    std::cout << "****************** Mapping Result ********************" << std::endl;
-    for (int i = 0; i < core_num; ++i)
-    {
-        std::cout << i << std::endl;
-        int AG_num = PIMCOM_6_physical_core_AG_map.core_list[i].AG_list.size();
-        for (int j = 0; j < AG_num; ++j)
-        {
-            std::cout << "    " << PIMCOM_6_physical_core_AG_map.core_list[i].node_list[j]
-                      << "    " << PIMCOM_6_physical_core_AG_map.core_list[i].AG_list[j].replication_index
-                      << "    " << PIMCOM_6_physical_core_AG_map.core_list[i].AG_list[j].AG_index_in_replication
-                      << "   | " << PIMCOM_6_physical_core_AG_map.core_list[i].AG_list[j].AG_index_in_total << std::endl;
-        }
-    }
+//    std::cout << "****************** Mapping Result ********************" << std::endl;
+//    for (int i = 0; i < core_num; ++i)
+//    {
+//        std::cout << i << std::endl;
+//        int AG_num = PIMCOM_6_physical_core_AG_map.core_list[i].AG_list.size();
+//        for (int j = 0; j < AG_num; ++j)
+//        {
+//            std::cout << "    " << PIMCOM_6_physical_core_AG_map.core_list[i].node_list[j]
+//                      << "    " << PIMCOM_6_physical_core_AG_map.core_list[i].AG_list[j].replication_index
+//                      << "    " << PIMCOM_6_physical_core_AG_map.core_list[i].AG_list[j].AG_index_in_replication
+//                      << "   | " << PIMCOM_6_physical_core_AG_map.core_list[i].AG_list[j].AG_index_in_total << std::endl;
+//        }
+//    }
 
     //// 得到每个AG的instruction_group_num
     for (int i = 0; i < PIMCOM_2_AG_partition.size(); ++i)
@@ -209,7 +208,7 @@ void InferencePipelineSchedule::SchedulePreparationFast(Json::Value &DNNInfo)
 }
 
 
-void InferencePipelineSchedule::ScheduleNaiveStage1Fast(Json::Value &  DNNInfo, int instruction_group_index, bool append_instruction)
+void InferencePipelineSchedule::ScheduleNaiveStage1( int instruction_group_index, bool append_instruction)
 {
     //// 首先为每个AG生成MVMUL操作
     for (int i = 0; i < core_num; ++i)
@@ -322,7 +321,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage1Fast(Json::Value &  DNNInfo, 
 }
 
 
-void InferencePipelineSchedule::ScheduleNaiveStage2Fast(Json::Value &  DNNInfo, int instruction_group_index)
+void InferencePipelineSchedule::ScheduleNaiveStage2( int instruction_group_index)
 {
     //// 同一结点且同一权重块的AG之间的结果融合（VADD）
     for (int i = 0; i < core_num; ++i)
@@ -371,7 +370,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage2Fast(Json::Value &  DNNInfo, 
     }
 }
 
-void InferencePipelineSchedule::ScheduleNaiveStage3Fast(Json::Value &  DNNInfo, int instruction_group_index)
+void InferencePipelineSchedule::ScheduleNaiveStage3( int instruction_group_index)
 {
     int comm_index = 0;
     //// 结果发送与融合
@@ -477,7 +476,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage3Fast(Json::Value &  DNNInfo, 
     }
 }
 
-void InferencePipelineSchedule::ScheduleNaiveStageActFast(Json::Value &DNNInfo, int instruction_group_index)
+void InferencePipelineSchedule::ScheduleNaiveStageAct(int instruction_group_index)
 {
     for (int i = 0; i < core_num; ++i)
     {
@@ -510,7 +509,7 @@ void InferencePipelineSchedule::ScheduleNaiveStageActFast(Json::Value &DNNInfo, 
     }
 }
 
-void InferencePipelineSchedule::ScheduleNaiveStage4Fast(Json::Value &  DNNInfo,  int instruction_group_index)
+void InferencePipelineSchedule::ScheduleNaiveStage4(  int instruction_group_index)
 {
     //// 结果传递与写回
     for (int i = 0; i < core_num; ++i)
@@ -545,6 +544,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage4Fast(Json::Value &  DNNInfo, 
                     Instruction_send.source = AG_index_in_total;
                     Instruction_send.relative_length = node_offset_inference[AG_index_in_total];
                     Instruction_send.element_num = Instruction_send.relative_length * AG_output_element_size[AG_index_in_total];
+//                    int real_instruction_group_index = (Instruction_send["relative_length"].asInt()-1)/operation_cycle_before_comm;
                     int real_instruction_group_index = instruction_group_index;
                     Instruction_send.instruction_group_index = real_instruction_group_index;
                     Instruction_send.AGP = current_core.AG_list[j].AGP;
@@ -613,7 +613,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage4Fast(Json::Value &  DNNInfo, 
 }
 
 static int visit_stage5[MAX_NODE] = {0};
-void InferencePipelineSchedule::ScheduleNaiveStage5Fast(Json::Value & DNNInfo, int node_index, int level_index, int instruction_group_index)
+void InferencePipelineSchedule::ScheduleNaiveStage5( int node_index, int level_index, int instruction_group_index)
 {
     int consumer_num = PIMCOM_node_list[node_index].consumer_num;
     if (consumer_num == 0)
@@ -633,7 +633,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage5Fast(Json::Value & DNNInfo, i
             {
                 if (consumer_op ==  "OP_CONV" || consumer_op == "OP_FC")
                 {
-                    ScheduleNaiveStage5Fast(DNNInfo, consumer_index, consumer_level, instruction_group_index);
+                    ScheduleNaiveStage5(consumer_index, consumer_level, instruction_group_index);
                 }
             }
             else if (visit_stage5[consumer_index] == 0) // 这一句是为了解决一个node会有多个同level的生产者，这样每个该level的生产者都会处理一下该node，造成重复。这里设置的意义是只运行一次后处理即可。
@@ -663,6 +663,8 @@ void InferencePipelineSchedule::ScheduleNaiveStage5Fast(Json::Value & DNNInfo, i
                         Instruction_elt.source_1 = AG0_index_in_total;
                         Instruction_elt.source_2 = PIMCOM_node_list[provider_index].AG0_index_in_total;
                         Instruction_elt.destination = AG0_index_in_total;
+                        // 这个relative_length是未考虑复制块的情况，所以弃用
+                        // Instruction["relative_length"] = node_offset_inference[AG0_index_in_total];
                         Instruction_elt.relative_length =PIMCOM_6_input_cycle_record[effective_provider_index].size();
                         Instruction_elt.element_num = Instruction_elt.relative_length * AG_output_element_size[AG0_index_in_total];
                         Instruction_elt.copy_offset_flag = PIMCOM_node_list[consumer_index].copy_offset_flag;
@@ -702,7 +704,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage5Fast(Json::Value & DNNInfo, i
 //                        Instruction.element_num = Instruction.relative_length * AG_output_element_size[provider_AG0_index];
 //                        Instruction.copy_offset_flag = PIMCOM_node_list[consumer_index].copy_offset_flag;
 //                        PIMCOM_6_post_instruction_ir[instruction_group_index].core_list[AG0_core_index].instruction_ir_list.push_back(Instruction);
-//                      // 下面这个代码是将CONCAT代码展开来，即具体形式。
+                        //// 下面这个代码是将CONCAT代码展开来，即具体形式。
                         {
                             // 这个output_channel_num是完整的
                             // int output_channel_num = PIMCOM_node_list[provider_index].output_dim[2] * PIMCOM_node_list[provider_index].output_dim[3]; // H*W
@@ -755,7 +757,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage5Fast(Json::Value & DNNInfo, i
                         Instruction_act.node_index = consumer_index;
                         Instruction_act.source = AG0_index_in_total;
                         Instruction_act.destination = AG0_index_in_total;
-                        // 这里的offset不确定
+                        // TODO 这里的offset不确定
                         Instruction_act.rs_offset = 0;
                         Instruction_act.rd_offset = 0;
                         Instruction_act.relative_length = PIMCOM_6_input_cycle_record[effective_provider_index].size();
@@ -827,7 +829,6 @@ void InferencePipelineSchedule::ScheduleNaiveStage5Fast(Json::Value & DNNInfo, i
 //                    Instruction.type = VEC1OP;
 //                    Instruction.level_index = PIMCOM_node_list[consumer_index].level_index;
 //                    Instruction.operation = consumer_op;
-
                     std::cout << "  not considered post op:" << consumer_op << "  node_index:" << consumer_index << std::endl;
 //                    Instruction.node_index = consumer_index;
 //                    Instruction.source = AG0_index_in_total;
@@ -838,14 +839,14 @@ void InferencePipelineSchedule::ScheduleNaiveStage5Fast(Json::Value & DNNInfo, i
 //                    int real_instruction_group_index = instruction_group_index;
 //                    PIMCOM_6_post_instruction_ir[real_instruction_group_index].core_list[AG0_core_index].instruction_ir_list.push_back(Instruction);
                 }
-                ScheduleNaiveStage5Fast(DNNInfo, consumer_index, level_index, instruction_group_index);
+                ScheduleNaiveStage5(consumer_index, level_index, instruction_group_index);
             }
         }
     }
 }
 
 
-int InferencePipelineSchedule::GetInputChannelFromOutputIndexFast(Json::Value &DNNInfo, int node_index, int output_index, bool is_last)
+int InferencePipelineSchedule::GetInputChannelFromOutputIndex(int node_index, int output_index, bool is_last)
 {
     struct PIMCOM_node Node = PIMCOM_node_list[node_index];
     struct param Params = Node.param;
@@ -906,7 +907,7 @@ int InferencePipelineSchedule::GetInputChannelFromOutputIndexFast(Json::Value &D
 }
 
 static int visit_stage6[MAX_NODE] = {0};
-void InferencePipelineSchedule::ScheduleNaiveStage6Fast(Json::Value & DNNInfo, int node_index, int level_index, int mode, int instruction_group_index)
+void InferencePipelineSchedule::ScheduleNaiveStage6( int node_index, int level_index, int mode, int instruction_group_index)
 {
     // 每次向前跳一步。所以只用检测visit_stage6[node_index]是否等于0即可。
     if (visit_stage6[node_index] != 0)
@@ -1011,7 +1012,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage6Fast(Json::Value & DNNInfo, i
                                     int effective_consumer_index = PIMCOM_node_list[consumer_index].effective_node_index;
                                     int first_output_index = PIMCOM_2_AG_partition[effective_consumer_index].replication[recv_replication].input_cycle_this_start;
                                     int last_output_index = PIMCOM_2_AG_partition[effective_consumer_index].replication[recv_replication].input_cycle_this_end;
-                                    int channel_num = GetInputChannelFromOutputIndexFast(DNNInfo, consumer_index, last_output_index, 1) - GetInputChannelFromOutputIndexFast(DNNInfo, consumer_index, first_output_index, 0);
+                                    int channel_num = GetInputChannelFromOutputIndex( consumer_index, last_output_index, 1) - GetInputChannelFromOutputIndex( consumer_index, first_output_index, 0);
                                     int channel_length = PIMCOM_node_list[consumer_index].param.input_channel;
                                     int input_dim_num = PIMCOM_node_list[node_index].output_dim_num;
                                     int input_element_num = 1;
@@ -1029,7 +1030,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage6Fast(Json::Value & DNNInfo, i
                                     Instruction_ld.destination = recv_AG_index;
                                     // TODO: rs_offset
                                     Instruction_ld.rs_offset_between_inference = input_element_num;
-                                    Instruction_ld.rs_offset_in_inference = channel_length * GetInputChannelFromOutputIndexFast(DNNInfo, consumer_index, first_output_index, 0);
+                                    Instruction_ld.rs_offset_in_inference = channel_length * GetInputChannelFromOutputIndex(consumer_index, first_output_index, 0);
                                     Instruction_ld.rs_offset = -1;
                                     Instruction_ld.rd_offset = 0;
                                     Instruction_ld.element_num = channel_num * channel_length;
@@ -1045,7 +1046,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage6Fast(Json::Value & DNNInfo, i
                                     int last_output_index = PIMCOM_2_AG_partition[effective_consumer_index].replication[recv_replication].input_cycle_this_end;
 //                                    std::cout << " start_position:" << GetInputChannelFromOutputIndex(DNNInfo, consumer_index, first_output_index, 0) << std::endl;
 //                                    std::cout << " end_position:" << GetInputChannelFromOutputIndex(DNNInfo, consumer_index, last_output_index, 1) << std::endl;
-                                    int channel_num = GetInputChannelFromOutputIndexFast(DNNInfo, consumer_index, last_output_index, 1) - GetInputChannelFromOutputIndexFast(DNNInfo, consumer_index, first_output_index, 0);
+                                    int channel_num = GetInputChannelFromOutputIndex(consumer_index, last_output_index, 1) - GetInputChannelFromOutputIndex(consumer_index, first_output_index, 0);
                                     int channel_length = PIMCOM_node_list[consumer_index].param.input_channel;
 
                                     struct INST  Instruction_send;
@@ -1054,7 +1055,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage6Fast(Json::Value & DNNInfo, i
                                     Instruction_send.operation = "SEND";
                                     Instruction_send.to_core = recv_core;
                                     Instruction_send.source = provider_AG_index;
-                                    Instruction_send.rs_offset = channel_length * GetInputChannelFromOutputIndexFast(DNNInfo, consumer_index, first_output_index, 0);
+                                    Instruction_send.rs_offset = channel_length * GetInputChannelFromOutputIndex(consumer_index, first_output_index, 0);
                                     Instruction_send.element_num = channel_num * channel_length;
                                     Instruction_send.instruction_group_index = instruction_group_index;
                                     PIMCOM_6_post_instruction_ir[instruction_group_index].core_list[provider_core].instruction_ir_list.push_back(Instruction_send);
@@ -1199,9 +1200,9 @@ void InferencePipelineSchedule::ScheduleNaiveStage6Fast(Json::Value & DNNInfo, i
                                     int effective_consumer_index = PIMCOM_node_list[consumer_index].effective_node_index;
                                     int first_output_index = PIMCOM_2_AG_partition[effective_consumer_index].replication[recv_replication].input_cycle_this_start;
                                     int last_output_index = PIMCOM_2_AG_partition[effective_consumer_index].replication[recv_replication].input_cycle_this_end;
-//                                    std::cout << " start_position:" << GetInputChannelFromOutputIndex(DNNInfo, consumer_index, first_output_index, 0) << std::endl;
-//                                    std::cout << " end_position:" << GetInputChannelFromOutputIndex(DNNInfo, consumer_index, last_output_index, 1) << std::endl;
-                                    int channel_num = GetInputChannelFromOutputIndexFast(DNNInfo, consumer_index, last_output_index, 1) - GetInputChannelFromOutputIndexFast(DNNInfo, consumer_index, first_output_index, 0);
+//                                    std::cout << " start_position:" << GetInputChannelFromOutputIndex(consumer_index, first_output_index, 0) << std::endl;
+//                                    std::cout << " end_position:" << GetInputChannelFromOutputIndex(consumer_index, last_output_index, 1) << std::endl;
+                                    int channel_num = GetInputChannelFromOutputIndex(consumer_index, last_output_index, 1) - GetInputChannelFromOutputIndex(consumer_index, first_output_index, 0);
                                     int channel_length = PIMCOM_node_list[consumer_index].param.input_channel;
 
                                     struct INST  Instruction_st;
@@ -1211,7 +1212,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage6Fast(Json::Value & DNNInfo, i
                                     Instruction_st.operation = "ST";
                                     Instruction_st.source = provider_AG_index;
                                     Instruction_st.destination = recv_AG_index;
-                                    Instruction_st.rs_offset = channel_length * GetInputChannelFromOutputIndexFast(DNNInfo, consumer_index, first_output_index, 0);
+                                    Instruction_st.rs_offset = channel_length * GetInputChannelFromOutputIndex(consumer_index, first_output_index, 0);
                                     Instruction_st.rd_offset_unit = (channel_num * channel_length);
                                     Instruction_st.rd_offset = -1;
                                     Instruction_st.element_num = channel_num * channel_length;
@@ -1327,13 +1328,13 @@ void InferencePipelineSchedule::ScheduleNaiveStage6Fast(Json::Value & DNNInfo, i
                     }
                 }
             }
-            ScheduleNaiveStage6Fast(DNNInfo, consumer_index, consumer_level, mode, instruction_group_index);
+            ScheduleNaiveStage6(consumer_index, consumer_level, mode, instruction_group_index);
         }
     }
 }
 
 
-void InferencePipelineSchedule::AddSeparateLineFast(Json::Value & DNNInfo, int instruction_group_index)
+void InferencePipelineSchedule::AddSeparateLine( int instruction_group_index)
 {
     for (int i = 0; i < core_num; ++i)
     {
@@ -1344,7 +1345,7 @@ void InferencePipelineSchedule::AddSeparateLineFast(Json::Value & DNNInfo, int i
     }
 }
 
-void InferencePipelineSchedule::FillTheWholeInstructionGroupFast(Json::Value & DNNInfo)
+void InferencePipelineSchedule::FillTheWholeInstructionGroup()
 {
     // Clean And Fill node_offset_inference
     for (int i = 0; i < MAX_AG; ++i)
@@ -1372,7 +1373,7 @@ void InferencePipelineSchedule::FillTheWholeInstructionGroupFast(Json::Value & D
     }
 }
 
-int InferencePipelineSchedule::GetEffectiveInstructionGroupNumFast(Json::Value & DNNInfo)
+int InferencePipelineSchedule::GetEffectiveInstructionGroupNum()
 {
     int effective_instruction_group_num = 0;
     int AG_num_in_total = PIMCOM_3_hierarchy_map.whole.size();
@@ -1393,8 +1394,28 @@ int InferencePipelineSchedule::GetEffectiveInstructionGroupNumFast(Json::Value &
     return effective_instruction_group_num;
 }
 
+void InferencePipelineSchedule::ResetPostStartAndEndAddress(int origin_length, int assumed_core_num)
+{
+    post_start_address.clear();
+    post_end_address.clear();
+    std::vector<int> output_core_allocated;
+    for (int i = 0; i < assumed_core_num; ++i)
+        output_core_allocated.push_back(ceil(float(origin_length) / float(assumed_core_num)));
+    int minus_num = ceil(float(origin_length) / float(assumed_core_num)) * assumed_core_num - origin_length;
+    for (int i = 0; i < minus_num; ++i)
+        output_core_allocated[assumed_core_num-1-i] -= 1;
+    int start_address;
+    int end_address = -1;
+    for (int i = 0; i < assumed_core_num; ++i)
+    {
+        start_address = end_address + 1;
+        end_address = start_address + output_core_allocated[i] - 1;
+        post_start_address.push_back(start_address);
+        post_end_address.push_back(end_address);
+    }
+}
 
-void InferencePipelineSchedule::ScheduleNaiveScheduleOnePostOperationFast(Json::Value &DNNInfo,int instruction_group_index, int post_node_index)
+void InferencePipelineSchedule::ScheduleNaiveScheduleOnePostOperation(int instruction_group_index, int post_node_index)
 {
     int appointed_core_num = 23;
     struct PIMCOM_node PostOperationNode = PIMCOM_node_list[post_node_index];
@@ -1412,8 +1433,8 @@ void InferencePipelineSchedule::ScheduleNaiveScheduleOnePostOperationFast(Json::
             int output_channel_start = post_start_address[i];
             int output_channel_end = post_end_address[i];
 //            std::cout << output_channel_start << "  " << output_channel_end << std::endl;
-            int input_channel_start = GetInputChannelFromOutputIndexFast(DNNInfo, post_node_index, output_channel_start, 0);
-            int input_channel_end = GetInputChannelFromOutputIndexFast(DNNInfo, post_node_index, output_channel_end, 1);
+            int input_channel_start = GetInputChannelFromOutputIndex(post_node_index, output_channel_start, 0);
+            int input_channel_end = GetInputChannelFromOutputIndex(post_node_index, output_channel_end, 1);
 
             struct INST Instruction_ld;
             Instruction_ld.node_index = post_node_index;
@@ -1707,7 +1728,69 @@ void InferencePipelineSchedule::ScheduleNaiveScheduleOnePostOperationFast(Json::
     }
 }
 
-void InferencePipelineSchedule::ScheduleNaivePickOnePostOperationFast(Json::Value &DNNInfo)
+//void InferencePipelineSchedule::ScheduleNaivePickOnePostOperation()
+//{
+//    std::set <int> complete_node;
+//    std::set <int> wait_node;
+//    std::set <int> ready_node;
+//    for (int i = 0; i < node_num; ++i)
+//    {
+//        Json::Value Node = NodeList[i];
+//        if (strcmp(Node["operation"].asCString(), "OP_INPUT") == 0 || strcmp(Node["operation"].asCString(), "OP_CONV") == 0 || strcmp(Node["operation"].asCString(), "OP_FC") == 0)
+//        {
+//            complete_node.insert(i);
+//        }
+//        else if(strcmp(Node["operation"].asCString(), "OP_RELU") == 0)
+//        {
+//            int provider_node_index = Node["provider_index"][0].asInt();
+//            if (strcmp(NodeList[provider_node_index]["operation"].asCString(), "OP_CONV") == 0 || strcmp(NodeList[provider_node_index]["operation"].asCString(), "OP_FC") == 0)
+//            {
+//                complete_node.insert(i);
+//            }
+//            else
+//            {
+//                wait_node.insert(i);
+//            }
+//        }
+//        else
+//        {
+//            wait_node.insert(i);
+//        }
+//    }
+//
+//    int post_cycle = 0;
+//    while (wait_node.size() != 0)
+//    {
+//        std::cout << "post_cycle" << post_cycle << std::endl;
+//        for (std::set<int>::iterator i = wait_node.begin(); i != wait_node.end(); i++)
+//        {
+//            int node_index = *i;
+//            bool ready = true;
+//            for (int j = 0; j < NodeList[node_index]["provider_index"].size(); ++j)
+//            {
+//                int provider_index = NodeList[node_index]["provider_index"][j].asInt();
+//                if (complete_node.count(provider_index) == 0)
+//                    ready = false;
+//            }
+//            if (ready)
+//            {
+//                ready_node.insert(node_index);
+//            }
+//        }
+//
+//        for (std::set<int>::iterator i = ready_node.begin(); i != ready_node.end(); i++)
+//        {
+//            std::cout << "  " << *i << std::endl;
+//            complete_node.insert(*i);
+//            wait_node.erase(*i);
+//        }
+//        ready_node.clear();
+//        post_cycle++;
+//
+//    }
+//}
+
+void InferencePipelineSchedule::ScheduleNaivePickOnePostOperation()
 {
     std::set <int> complete_node;
     std::set <int> wait_node;
@@ -1769,7 +1852,7 @@ void InferencePipelineSchedule::ScheduleNaivePickOnePostOperationFast(Json::Valu
 //        std::cout << "  pick : " << pick << std::endl;
         std::string post_operation = PIMCOM_node_list[pick].operation;
         if (post_operation == "OP_CONCAT" || post_operation == "OP_RELU" || post_operation == "OP_POOL" || post_operation == "OP_ELTWISE")
-            ScheduleNaiveScheduleOnePostOperationFast(DNNInfo, post_cycle, pick);
+            ScheduleNaiveScheduleOnePostOperation(post_cycle, pick);
         else
             std::cout << post_operation << std::endl;
         wait_node.erase(pick);
@@ -1798,11 +1881,11 @@ void InferencePipelineSchedule::ScheduleNaivePickOnePostOperationFast(Json::Valu
 
 const static int inference_start = 100;
 const static int inference_end = 100;
-void InferencePipelineSchedule::ScheduleNaiveFast(Json::Value &DNNInfo)
+void InferencePipelineSchedule::ScheduleNaive()
 {
     clock_t time_use = 0;
     // TODO：未考虑是否死锁。或许会出现这种情况。
-    int effective_instruction_group_num = GetEffectiveInstructionGroupNumFast(DNNInfo);
+    int effective_instruction_group_num = GetEffectiveInstructionGroupNum();
     int instruction_group_num = user_given_instruction_group_num > effective_instruction_group_num ? effective_instruction_group_num : user_given_instruction_group_num;
     PIMCOM_6_base_instruction_ir.resize(instruction_group_num);
     PIMCOM_6_input_cycle_record.resize(node_num);
@@ -1811,47 +1894,43 @@ void InferencePipelineSchedule::ScheduleNaiveFast(Json::Value &DNNInfo)
     {
         for (int k = 0; k < operation_cycle_before_comm; k++)
         {
-            ScheduleNaiveStage1Fast(DNNInfo, j, 1);
-            ScheduleNaiveStage2Fast(DNNInfo, j);
+            ScheduleNaiveStage1(j, 1);
+            ScheduleNaiveStage2(j);
             for (int & n : add_flag) {n = 0;}
         }
         //// Stage3的作用是融合同一个复制块的计算结果，得到完整的结果
-        ScheduleNaiveStage3Fast(DNNInfo, j);
+        ScheduleNaiveStage3(j);
         for (int & n : comm_flag) {n = 0;}
         //// StageACT的作用是为每个复制块的计算结果添加激活层
-        ScheduleNaiveStageActFast(DNNInfo, j);
+        ScheduleNaiveStageAct(j);
         for (int & n : activate_flag) {n = 0;}
         for (int & n : node_offset_instruction_group) {n = 0;}
         for (int l = 0; l < MAX_AG; ++l) {node_offset_inference_old[l] = node_offset_inference[l];}
     }
     //// 注意不能加sep，因为其type还不确定。
-//    AddSeparateLineFast(DNNInfo, instruction_group_num-1);
+//    AddSeparateLine(instruction_group_num-1);
     //// 情况并且填满node_offset_inference和input_cycle_record，主要是为了后面这些操作是处理完整数据
-    FillTheWholeInstructionGroupFast(DNNInfo);
+//    FillTheWholeInstructionGroup();
     //// Stage4的作用是把不同复制块的数据传到一起，以方便下一步后处理的开展
-    ScheduleNaiveStage4Fast(DNNInfo, 0);
+//    ScheduleNaiveStage4(0);
     //// mode为0的Stage6两个作用:同level节点间传输数据、产生copy_offset_flag
-    ScheduleNaiveStage6Fast(DNNInfo, 0, 0, 0, 0);
+//    ScheduleNaiveStage6(0, 0, 0, 0);
     for (int & n : visit_stage6) {n = 0;}
     //// Stage5的作用是添加后处理指令
-    ScheduleNaiveStage5Fast(DNNInfo, 0, 0, 0);
+//    ScheduleNaiveStage5(0, 0, 0);
     for (int & n : visit_stage5) {n = 0;}
     for (int & n : wb_flag) {n = 0;}
     //// mode为1的Stage6的作用是将本轮推理周期产生的数据进行传递，以便下一个推理周期的运行
-//    clock_t timestamp_1 = clock();
-    ScheduleNaiveStage6Fast(DNNInfo, 0, 0, 1, 0);
-//    clock_t timestamp_2 = clock();
-//    std::cout << double(timestamp_2 - timestamp_1) / CLOCKS_PER_SEC << "s" << std::endl;
+//    ScheduleNaiveStage6(0, 0, 1, 0);
     for (int & n : visit_stage6) {n = 0;}
     for (int & n : node_offset_inference) {n = 0;}
     for (int & n : AG_accumulated_num) {n = 0;}
-    ScheduleNaivePickOnePostOperationFast(DNNInfo);
+    ScheduleNaivePickOnePostOperation();
 //    std::cout << double(time_use) / CLOCKS_PER_SEC << "s" << std::endl;
 }
 
 
-
-void InferencePipelineSchedule::ScheduleShowInstructionFast(Json::Value &DNNInfo)
+void InferencePipelineSchedule::ShowInstruction()
 {
     for (int inf = inference_start; inf <= inference_end ; ++inf)
     {
@@ -1894,38 +1973,38 @@ void InferencePipelineSchedule::ScheduleShowInstructionFast(Json::Value &DNNInfo
 //                {
 //                    continue;
 //                }
-//                ShowSingleInstruction(Instruction, inf);
+//                ShowSingleInstructionFast(Instruction, inf);
 //            }
 //        }
 
-        std::cout << std::endl;
-        int instruction_group_num_2 = PIMCOM_6_post_multi_core_instruction_ir.size();
-        for (int i = 0; i < instruction_group_num_2; ++i)
-        {
-            std::cout << std::endl;
-            std::cout << "========================================= post multi core instruction_group " << i << " =========================================" << std::endl;
-            int post_multi_core_num = PIMCOM_6_post_multi_core_instruction_ir[i].core_list.size();
-            for (int j = 0; j < post_multi_core_num; ++j)
-            {
-                std::cout << "core " << j << std::endl;
-                int instruction_num = PIMCOM_6_post_multi_core_instruction_ir[i].core_list[j].instruction_ir_list.size();
-                for (int k = 0; k < instruction_num; ++k)
-                {
-                    struct INST Instruction = PIMCOM_6_post_multi_core_instruction_ir[i].core_list[j].instruction_ir_list[k];
-                    int instruction_level_index = Instruction.level_index;
-                    if (instruction_level_index > inf)
-                    {
-                        continue;
-                    }
-                    ShowSingleInstructionFast(Instruction, inf);
-                }
-            }
-        }
+//        std::cout << std::endl;
+//        int instruction_group_num_2 = PIMCOM_6_post_multi_core_instruction_ir.size();
+//        for (int i = 0; i < instruction_group_num_2; ++i)
+//        {
+//            std::cout << std::endl;
+//            std::cout << "========================================= post multi core instruction_group " << i << " =========================================" << std::endl;
+//            int post_multi_core_num = PIMCOM_6_post_multi_core_instruction_ir[i].core_list.size();
+//            for (int j = 0; j < post_multi_core_num; ++j)
+//            {
+//                std::cout << "core " << j << std::endl;
+//                int instruction_num = PIMCOM_6_post_multi_core_instruction_ir[i].core_list[j].instruction_ir_list.size();
+//                for (int k = 0; k < instruction_num; ++k)
+//                {
+//                    struct INST Instruction = PIMCOM_6_post_multi_core_instruction_ir[i].core_list[j].instruction_ir_list[k];
+//                    int instruction_level_index = Instruction.level_index;
+//                    if (instruction_level_index > inf)
+//                    {
+//                        continue;
+//                    }
+//                    ShowSingleInstructionFast(Instruction, inf);
+//                }
+//            }
+//        }
     }
 }
 
 
-void InferencePipelineSchedule::ScheduleSaveInstructionFast(Json::Value &DNNInfo)
+void InferencePipelineSchedule::SaveInstruction()
 {
     std::ofstream OutFile("../fast.txt", std::ios::out | std::ios::trunc);
     for (int inf = inference_start; inf <= inference_end ; ++inf)
@@ -1997,3 +2076,16 @@ void InferencePipelineSchedule::ScheduleSaveInstructionFast(Json::Value &DNNInfo
     }
     OutFile.close();
 }
+
+
+
+//void InferencePipelineSchedule::SaveJsonIR(, std::string ModelName)
+//{
+//    std::string strJson = DNNInfo.toStyledString();
+//    std::ofstream fob("../ir/"+ModelName+"/6_es.json", std::ios::trunc | std::ios::out);
+//    if (fob.is_open())
+//    {
+//        fob.write(strJson.c_str(), strJson.length());
+//        fob.close();
+//    }
+//}

@@ -28,18 +28,15 @@ struct PIMCOM_7_reload_info PIMCOM_7_reload_info;
 std::vector<struct PIMCOM_6_instruction_ir> PIMCOM_7_base_instruction_with_reload;
 
 
-void MemoryAllocation::AllocateMemoryFast(Json::Value &DNNInfo)
+void MemoryAllocation::AllocateMemory()
 {
     core_num = PIMCOM_3_virtual_core_crossbar_map.size();
-//    BaseMemoryUsageInfoFast(DNNInfo);
-    clock_t timestamp_1 = clock();
-    BaseGetReloadInfoFast(DNNInfo);
-    BaseAllocateNaiveFast(DNNInfo);
-    clock_t timestamp_2 = clock();
-//    std::cout << double(timestamp_2 - timestamp_1) / CLOCKS_PER_SEC << "s" << std::endl;
+//    BaseMemoryUsageInfo(DNNInfo);
+    BaseGetReloadInfo();
+    BaseAllocateNaive();
 }
 
-int MemoryAllocation::GetInputChannelFromOutputIndexFast(Json::Value &DNNInfo, int node_index, int output_index, bool is_last)
+int MemoryAllocation::GetInputChannelFromOutputIndex(int node_index, int output_index, bool is_last)
 {
     struct PIMCOM_node Node = PIMCOM_node_list[node_index];
     struct param Params = Node.param;
@@ -104,7 +101,7 @@ static float base_memory_usage_input[MAX_AG] = {0};
 static float base_memory_usage_output[MAX_AG] = {0};
 static float base_memory_usage_node[MAX_NODE] = {0};
 static float base_memory_usage_recv[MAX_CORE] = {0};
-void MemoryAllocation::BaseMemoryUsageInfoFast(Json::Value &DNNInfo)
+void MemoryAllocation::BaseMemoryUsageInfo()
 {
     std::cout << "============ core memory statistic ============" << std::endl;
     float core_memory_sum = 0.0;
@@ -262,7 +259,7 @@ void MemoryAllocation::BaseMemoryUsageInfoFast(Json::Value &DNNInfo)
 }
 
 static int core_AG_num[MAX_CORE] = {0};
-void MemoryAllocation::BaseGetReloadInfoFast(Json::Value &DNNInfo)
+void MemoryAllocation::BaseGetReloadInfo()
 {
     int effective_node_num = PIMCOM_2_effective_node.size();
     for (int i = 0; i < effective_node_num; ++i)
@@ -338,7 +335,7 @@ void MemoryAllocation::BaseGetReloadInfoFast(Json::Value &DNNInfo)
     }
 }
 
-void MemoryAllocation::BaseAllocateNaiveFast(Json::Value &DNNInfo)
+void MemoryAllocation::BaseAllocateNaive()
 {
     int instruction_group_num = PIMCOM_6_base_instruction_ir.size();
     PIMCOM_7_base_instruction_with_reload.resize(instruction_group_num);
@@ -363,8 +360,8 @@ void MemoryAllocation::BaseAllocateNaiveFast(Json::Value &DNNInfo)
                         // input_cycle is output_channel_index
                         int input_cycle_start = PIMCOM_7_reload_info.core_list[j].AG_list[k].reload[reload_index].start;
                         int input_cycle_end = PIMCOM_7_reload_info.core_list[j].AG_list[k].reload[reload_index].end;
-                        int input_channel_start = GetInputChannelFromOutputIndexFast(DNNInfo, node_index, input_cycle_start, 0);
-                        int input_channel_end = GetInputChannelFromOutputIndexFast(DNNInfo, node_index, input_cycle_end, 1);
+                        int input_channel_start = GetInputChannelFromOutputIndex(node_index, input_cycle_start, 0);
+                        int input_channel_end = GetInputChannelFromOutputIndex(node_index, input_cycle_end, 1);
                         int input_channel_length = PIMCOM_node_list[node_index].param.input_channel;
 
                         struct INST Instruction_ld;
@@ -502,7 +499,7 @@ void MemoryAllocation::BaseAllocateNaiveFast(Json::Value &DNNInfo)
     }
 }
 
-//void MemoryAllocation::PostMemoryUsageInfo(Json::Value &DNNInfo)
+//void MemoryAllocation::PostMemoryUsageInfo()
 //{
 //    for (int i = 0; i < core_num; ++i)
 //    {
@@ -527,7 +524,7 @@ void MemoryAllocation::BaseAllocateNaiveFast(Json::Value &DNNInfo)
 
 static int inference_start = 100;
 static int inference_end = 100;
-//void MemoryAllocation::ShowInstructionFast(Json::Value &DNNInfo)
+//void MemoryAllocation::ShowInstruction()
 //{
 //    for (int inf = inference_start; inf <= inference_end ; ++inf)
 //    {
@@ -557,7 +554,7 @@ static int inference_end = 100;
 //    }
 //}
 
-void MemoryAllocation::SaveInstructionFast(Json::Value &DNNInfo)
+void MemoryAllocation::SaveInstruction()
 {
     std::ofstream OutFile("../fast2.txt", std::ios::out | std::ios::trunc);
     for (int inf = inference_start; inf <= inference_end ; ++inf)
@@ -589,9 +586,9 @@ void MemoryAllocation::SaveInstructionFast(Json::Value &DNNInfo)
 }
 
 
-//void MemoryAllocation::SaveJsonIR(Json::Value &DNNInfo, std::string ModelName)
+//void MemoryAllocation::SaveJsonIR(std::string ModelName)
 //{
-//    std::string strJson = PIMCOM_toStyledString();
+//    std::string strJson = DNNInfo.toStyledString();
 //    std::ofstream fob("../ir/"+ModelName+"/7_ma.json", std::ios::trunc | std::ios::out);
 //    if (fob.is_open())
 //    {

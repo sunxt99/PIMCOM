@@ -11,25 +11,16 @@
 class InferencePipelineDesign
 {
 public:
-    void DesignPipelineFast(Json::Value & DNNInfo);
-    void DesignPipelineSlow(Json::Value & DNNInfo);
-    void SaveJsonIR(Json::Value & DNNInfo, std::string ModelName);
-    void ShowClassificationInfoSlow(Json::Value & DNNInfo);
-    void ShowClassificationInfoFast(Json::Value & DNNInfo);
-
+    void DesignPipeline();
+    void ShowClassificationInfo();
+//    void SaveJsonIR(Json::Value & DNNInfo, std::string ModelName);
 private:
-    Json::Value NodeList;
     int node_num;
-    void ClassifyTheNodeFast(int node_index, int level_index, int index_in_level);
-    void ClassifyTheNodeSlow(int node_index, int level_index, int index_in_level);
-    void GetAugmentedNodeListFast(Json::Value & DNNInfo);
-    void GetAugmentedNodeListSlow(Json::Value & DNNInfo);
-    void RefineAugmentedNodeListFast(Json::Value & DNNInfo, int node_index, int level_index, int AG0_core_index, int AG0_index_in_total, int AG0_node_index);
-    void RefineAugmentedNodeListSlow(Json::Value & DNNInfo, int node_index, int level_index, int AG0_core_index, int AG0_index_in_total, int AG0_node_index);
-    void GetConcatMaxLevelForInceptionFast();
-    void GetConcatMaxLevelForInceptionSlow();
-    void GetPoolInfoFast(Json::Value & DNInfo);
-    void GetPoolInfoSlow(Json::Value & DNInfo);
+    void ClassifyTheNode(int node_index, int level_index, int index_in_level);
+    void GetAugmentedNodeList();
+    void RefineAugmentedNodeList(int node_index, int level_index, int AG0_core_index, int AG0_index_in_total, int AG0_node_index);
+    void GetConcatMaxLevelForInception();
+    void GetPoolInfo();
 };
 
 

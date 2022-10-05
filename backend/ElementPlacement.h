@@ -11,13 +11,11 @@
 class ElementPlacement
 {
 public:
-    void PlaceElement(Json::Value & DNNInfo);
-    void SaveJsonIR(Json::Value & DNNInfo, std::string ModelName);
+    void PlaceElement();
+//    void SaveJsonIR(Json::Value & DNNInfo, std::string ModelName);
 private:
-    void PlaceCoreNaiveFast(Json::Value & DNNInfo);
-    void PlaceCrossbarNaiveFast(Json::Value & DNNInfo);
-    void PlaceCoreNaiveSlow(Json::Value & DNNInfo);
-    void PlaceCrossbarNaiveSlow(Json::Value & DNNInfo);
+    void PlaceCoreNaive();
+    void PlaceCrossbarNaive();
 };
 
 

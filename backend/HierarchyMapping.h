@@ -12,14 +12,13 @@ class HierarchyMapping
 {
 public:
     HierarchyMapping();
-    void MapHierarchy(Json::Value & DNNInfo);
-    void ShowOriginalInfo(Json::Value & DNNInfo);
-    void SaveJsonIR(Json::Value & DNNInfo, std::string ModelName);
+    void MapHierarchy();
+    void ShowOriginalInfo();
+//    void SaveJsonIR(Json::Value & DNNInfo, std::string ModelName);
 private:
     int ResourceList[ChipW*ChipH]{};
-    void MapNaiveFast(Json::Value &DNNInfo);
-    void MapNaiveSlow(Json::Value &DNNInfo);
-    void Check(Json::Value &DNNInfo);
+    void MapNaive();
+    void Check();
 };
 
 

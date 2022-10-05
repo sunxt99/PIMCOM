@@ -12,12 +12,10 @@
 class WeightReplication
 {
 public:
-    void ReplicateWeight(Json::Value & DNNInfo);
-    void SaveJsonIR(Json::Value & DNNInfo, std::string ModelName);
+    void ReplicateWeight();
+//    void SaveJsonIR(Json::Value & DNNInfo, std::string ModelName);
 private:
-    void ReplicateRandomlyFast(Json::Value & DNNInfo);
-    void ReplicateRandomlySlow(Json::Value & DNNInfo);
-
+    void ReplicateRandomly();
 };
 
 

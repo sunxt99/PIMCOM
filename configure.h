@@ -5,7 +5,7 @@
 #ifndef PIMCOM_CONFIGURE_H
 #define PIMCOM_CONFIGURE_H
 
-const bool FastMode = 0;
+//const bool FastMode = 0;
 const int CellPrecision = 2;
 const int CrossbarW = 256;
 const int CrossbarH = 256;
@@ -26,8 +26,8 @@ const int COMM_delay = 20;
 // instruction_group_reload_num 几乎不会用了
 const int instruction_group_reload_num = 500;
 
-const int user_given_instruction_group_num = 5;
-const int operation_cycle_before_comm = 3;
+const int user_given_instruction_group_num = 7;
+const int operation_cycle_before_comm = 4;
 const int appointed_instruction_group_num = 3;
 
 #endif //PIMCOM_CONFIGURE_H

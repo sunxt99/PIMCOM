@@ -15,85 +15,6 @@
 
 std::map<int, struct PIMCOM_node> PIMCOM_node_list;
 
-void ShowModelInfoSlow(Json::Value & DNNInfo)
-{
-    int node_num = DNNInfo["node_list"].size();
-    std::cout << "#Nodes in total: " << node_num << std::endl;
-    float weight_precession = 16;
-    float weights = 0.0;
-    float FC_weights = 0.0;
-    for (int i = 0; i < node_num; ++i)
-    {
-        Json::Value Node = DNNInfo["node_list"][i];
-        if (strcmp(Node["operation"].asCString(), "OP_CONV") == 0)
-        {
-            std::cout << i <<std::endl;
-            Json::Value Param = Node["param"];
-            float kernel = Param["kernel_h"].asFloat();
-            float input_channel = Param["input_channel"].asFloat();
-            float output_channel = Param["output_channel"].asFloat();
-            weights += kernel * kernel * input_channel * output_channel;
-//            std::cout << "weight: " << kernel * kernel * input_channel * output_channel*weight_precession/8/1024/1024 << "MB" << std::endl;
-            Json::Value Input = Node["input_dim"];
-            std::cout << "input: " << Input[0].asFloat() * Input[1].asFloat() * Input[2].asFloat() * Input[3].asFloat() *weight_precession/8/1024 << "KB" << std::endl;
-            Json::Value Output = Node["output_dim"];
-            std::cout << "output: " << Output[0].asFloat() * Output[1].asFloat() * Output[2].asFloat() * Output[3].asFloat() *weight_precession/8/1024 << "KB" << std::endl;
-        }
-        else if (strcmp(Node["operation"].asCString(), "OP_FC") == 0)
-        {
-            Json::Value Param = Node["param"];
-            float input_num = Param["num_input"].asFloat();
-            float output_num = Param["num_output"].asFloat();
-            weights += input_num * output_num;
-            FC_weights += input_num * output_num;
-//            std::cout << "weight: " << input_num*output_num*weight_precession/8/1024/1024 << "MB" << std::endl;
-            Json::Value Output = Node["output_dim"];
-            std::cout << "output: " << Output[0].asFloat() * Output[1].asFloat() * Output[2].asFloat() * Output[3].asFloat()*weight_precession/8/1024/1024 << "MB" << std::endl;
-        }
-    }
-    std::cout << "FC Weight: " << FC_weights*weight_precession/8/1024/1024 << "MB" << std::endl;
-    std::cout << "Sum Weight: " << weights*weight_precession/8/1024/1024 << "MB" << std::endl;
-    std::cout << "FC Ratio: " << FC_weights/weights*100 << "%" << std::endl;
-}
-
-void ShowModelInfoFast(Json::Value & DNNInfo)
-{
-    int node_num = PIMCOM_node_list.size();
-    std::cout << "#Nodes in total: " << node_num << std::endl;
-    float weight_precession = 16;
-    float weights = 0.0;
-    float FC_weights = 0.0;
-    for (int i = 0; i < node_num; ++i)
-    {
-        if(PIMCOM_node_list[i].operation == "OP_CONV")
-        {
-            std::cout << i <<std::endl;
-            float kernel = PIMCOM_node_list[i].param.kernel_h;
-            float input_channel = PIMCOM_node_list[i].param.input_channel;
-            float output_channel = PIMCOM_node_list[i].param.output_channel;
-            weights += kernel * kernel * input_channel * output_channel;
-            std::vector<int> Input = PIMCOM_node_list[i].input_dim;
-            std::cout << "input: " << float(Input[0]) * float(Input[1]) * float(Input[2]) * float(Input[3]) *weight_precession/8/1024 << "KB" << std::endl;
-            std::vector<int> Output = PIMCOM_node_list[i].output_dim;
-            std::cout << "output: " << float(Output[0]) * float(Output[1]) * float(Output[2]) * float(Output[3]) *weight_precession/8/1024 << "KB" << std::endl;
-
-        }
-        else if (PIMCOM_node_list[i].operation == "OP_FC")
-        {
-            float input_num = PIMCOM_node_list[i].param.num_input;
-            float output_num = PIMCOM_node_list[i].param.num_output;
-            weights += input_num * output_num;
-            FC_weights += input_num * output_num;
-            std::vector<int> Output = PIMCOM_node_list[i].output_dim;
-            std::cout << "output: " << float(Output[0]) * float(Output[1]) * float(Output[2]) * float(Output[3]) *weight_precession/8/1024/1024 << "MB" << std::endl;
-
-        }
-    }
-    std::cout << "FC Weight: " << FC_weights*weight_precession/8/1024/1024 << "MB" << std::endl;
-    std::cout << "Sum Weight: " << weights*weight_precession/8/1024/1024 << "MB" << std::endl;
-    std::cout << "FC Ratio: " << FC_weights/weights*100 << "%" << std::endl;
-}
-
 void PreProcess(Json::Value & DNNInfo)
 {
     Json::Value NodeList = DNNInfo["node_list"];
@@ -214,9 +135,44 @@ void GetStructNodeListFromJson(Json::Value & DNNInfo)
     }
 }
 
-//    clock_t timestamp_1 = clock();
-//    clock_t timestamp_2 = clock();
-//    std::cout << double(timestamp_2 - timestamp_1) / CLOCKS_PER_SEC << "s" << std::endl;
+void ShowModelInfo()
+{
+    int node_num = PIMCOM_node_list.size();
+    std::cout << "#Nodes in total: " << node_num << std::endl;
+    float weight_precession = 16;
+    float weights = 0.0;
+    float FC_weights = 0.0;
+    for (int i = 0; i < node_num; ++i)
+    {
+        if(PIMCOM_node_list[i].operation == "OP_CONV")
+        {
+            std::cout << i <<std::endl;
+            float kernel = PIMCOM_node_list[i].param.kernel_h;
+            float input_channel = PIMCOM_node_list[i].param.input_channel;
+            float output_channel = PIMCOM_node_list[i].param.output_channel;
+            weights += kernel * kernel * input_channel * output_channel;
+//            std::cout << "weight: " << kernel * kernel * input_channel * output_channel*weight_precession/8/1024/1024 << "MB" << std::endl;
+            std::vector<int> Input = PIMCOM_node_list[i].input_dim;
+            std::cout << "input: " << float(Input[0]) * float(Input[1]) * float(Input[2]) * float(Input[3]) *weight_precession/8/1024 << "KB" << std::endl;
+            std::vector<int> Output = PIMCOM_node_list[i].output_dim;
+            std::cout << "output: " << float(Output[0]) * float(Output[1]) * float(Output[2]) * float(Output[3]) *weight_precession/8/1024 << "KB" << std::endl;
+        }
+        else if (PIMCOM_node_list[i].operation == "OP_FC")
+        {
+            float input_num = PIMCOM_node_list[i].param.num_input;
+            float output_num = PIMCOM_node_list[i].param.num_output;
+            weights += input_num * output_num;
+            FC_weights += input_num * output_num;
+//            std::cout << "weight: " << input_num*output_num*weight_precession/8/1024/1024 << "MB" << std::endl;
+            std::vector<int> Output = PIMCOM_node_list[i].output_dim;
+            std::cout << "output: " << float(Output[0]) * float(Output[1]) * float(Output[2]) * float(Output[3]) *weight_precession/8/1024/1024 << "MB" << std::endl;
+
+        }
+    }
+    std::cout << "FC Weight: " << FC_weights*weight_precession/8/1024/1024 << "MB" << std::endl;
+    std::cout << "Sum Weight: " << weights*weight_precession/8/1024/1024 << "MB" << std::endl;
+    std::cout << "FC Ratio: " << FC_weights/weights*100 << "%" << std::endl;
+}
 
 void PIMCOM(const std::string model_name)
 {
@@ -233,56 +189,40 @@ void PIMCOM(const std::string model_name)
     GetStructNodeListFromJson(DNNInfo);
 
     std::cout << "========================= MODEL INFO =========================" << std::endl;
-//    ShowModelInfoFast(DNNInfo);
+    ShowModelInfo();
 
+    clock_t timestamp_1 = clock();
     std::cout << "========================= MAPPING =========================" << std::endl;
     WeightReplication replication;
-    replication.ReplicateWeight(DNNInfo);
-    replication.SaveJsonIR(DNNInfo, model_name);
-
+    replication.ReplicateWeight();
 
     CrossbarPartition partition;
-    partition.PartitionCrossbar(DNNInfo);
-    partition.SaveJsonIR(DNNInfo,model_name);
+    partition.PartitionCrossbar();
 
     HierarchyMapping mapping;
-
-    mapping.MapHierarchy(DNNInfo);
-    mapping.SaveJsonIR(DNNInfo, model_name);
+    mapping.MapHierarchy();
 
     ElementPlacement placement;
-    placement.PlaceElement(DNNInfo);
-    placement.SaveJsonIR(DNNInfo, model_name);
-
+    placement.PlaceElement();
 
     std::cout << "========================= SCHEDULING =========================" << std::endl;
     enum PipelineType PipelineUse = Inference;
     PipelineDesignAndSchedule pipeline;
-    pipeline.DesignAndSchedule(DNNInfo, model_name, PipelineUse);
-
+    pipeline.DesignAndSchedule(model_name, PipelineUse);
 
     MemoryAllocation allocation;
-    if (FastMode)
-        allocation.AllocateMemoryFast(DNNInfo);
-    else
-        allocation.AllocateMemorySlow(DNNInfo);
-    if (FastMode)
-        allocation.SaveInstructionFast(DNNInfo);
-    else
-        allocation.SaveInstructionSlow(DNNInfo);
-    allocation.SaveJsonIR(DNNInfo, model_name);
+    allocation.AllocateMemory();
+    allocation.SaveInstruction();
 
     DetailAppend da;
-    da.AppendDetail(DNNInfo);
-    if (FastMode)
-        da.SaveDetailedInstructionFast(DNNInfo);
-    else
-        da.SaveDetailedInstructionSlow(DNNInfo);
-    da.SaveJsonIR(DNNInfo, model_name);
+    da.AppendDetail();
+    da.SaveInstruction();
 
-//    std::cout << "========================= EVALUATING =========================" << std::endl;
-//    ModelEvaluation evaluation;
-//    evaluation.EvaluateModel(DNNInfo);
+    std::cout << "========================= EVALUATING =========================" << std::endl;
+    ModelEvaluation evaluation;
+    evaluation.EvaluateModel();
+    clock_t timestamp_2 = clock();
+    std::cout << double(timestamp_2 - timestamp_1) / CLOCKS_PER_SEC << "s" << std::endl;
 }
 
 int main()
@@ -309,6 +249,7 @@ int main()
 //        PIMCOM(model_name);
 //        std::cout << "************************" << std::endl;
 //    }
-    std::string model_name = Models[2];
+
+    std::string model_name = Models[0];
     PIMCOM(model_name);
 }

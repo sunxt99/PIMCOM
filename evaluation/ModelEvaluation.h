@@ -17,15 +17,13 @@
 class ModelEvaluation
 {
 public:
-    void EvaluateModel(Json::Value & DNNInfo);
+    void EvaluateModel();
 private:
     int instruction_group_num;
     int core_num;
-    Json::Value InstructionGroup;
     std::map<int, int> comm_index_2_index_in_core_map;
     std::map<int, int> comm_index_2_core_index;
-    void EvaluateRecursionSlow(Json::Value & DNNInfo, int core_index, int index_in_core);
-    void EvaluateRecursionFast(Json::Value & DNNInfo, int core_index, int index_in_core);
+    void EvaluateRecursion(int core_index, int index_in_core);
     void ShowEvaluationResult();
 };
 

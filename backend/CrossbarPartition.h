@@ -10,12 +10,11 @@
 
 class CrossbarPartition {
 public:
-    void PartitionCrossbar(Json::Value & DNNInfo);
-    void SaveJsonIR(Json::Value & DNNInfo, std::string ModelName);
+    void PartitionCrossbar();
+//    void SaveJsonIR(Json::Value & DNNInfo, std::string ModelName);
 private:
     int Check();
-    void PartitionNaiveSlow(Json::Value & DNNInfo);
-    void PartitionNaiveFast(Json::Value & DNNInfo);
+    void PartitionNaive();
 };
 
 

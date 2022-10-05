@@ -13,25 +13,26 @@ extern struct PIMCOM_3_hierarchy_map PIMCOM_3_hierarchy_map;
 extern std::map<int, std::vector<int>> PIMCOM_3_virtual_core_crossbar_map;
 extern std::map<int,int> PIMCOM_4_physical_core_placement;
 extern std::vector<struct PIMCOM_2_virtual_crossbar> PIMCOM_4_physical_crossbar_placement;
+
 //std::map<int, struct PIMCOM_5_pool_info> PIMCOM_5_pool_info;
 std::vector<struct PIMCOM_5_pool_info> PIMCOM_5_pool_info;
 
-void InferencePipelineDesign::DesignPipelineFast(Json::Value & DNNInfo)
+void InferencePipelineDesign::DesignPipeline()
 {
     node_num = PIMCOM_node_list.size();
     // 下面这一行是为了inception优化过的分层函数。运行别的网络时可以不加。
-    GetConcatMaxLevelForInceptionFast();
-    ClassifyTheNodeFast(0, 0, 0);
-    GetAugmentedNodeListFast(DNNInfo);
-    RefineAugmentedNodeListFast(DNNInfo, 0, 0, 0, 0, 0);
-    GetPoolInfoFast(DNNInfo);
-//    ShowClassificationInfoFast(DNNInfo);
+    GetConcatMaxLevelForInception();
+    ClassifyTheNode(0, 0, 0);
+    GetAugmentedNodeList();
+    RefineAugmentedNodeList(0, 0, 0, 0, 0);
+    GetPoolInfo();
+//    ShowClassificationInfo(DNNInfo);
 }
 
 
 static int concat_rest_num[MAX_AG] = {0};
 static int concat_max_level[MAX_AG] = {0};
-void InferencePipelineDesign::GetConcatMaxLevelForInceptionFast()
+void InferencePipelineDesign::GetConcatMaxLevelForInception()
 {
     for (int i = 0; i < node_num; ++i)
     {
@@ -42,7 +43,7 @@ void InferencePipelineDesign::GetConcatMaxLevelForInceptionFast()
     }
 }
 
-void InferencePipelineDesign::ClassifyTheNodeFast(int node_index, int level_index, int index_in_level)
+void InferencePipelineDesign::ClassifyTheNode(int node_index, int level_index, int index_in_level)
 {
     if (node_index == 0)
     {
@@ -68,7 +69,7 @@ void InferencePipelineDesign::ClassifyTheNodeFast(int node_index, int level_inde
             std::string consumer_op = PIMCOM_node_list[consumer_index].operation;
             if ( consumer_op == "OP_CONV" || consumer_op == "OP_FC")
             {
-                ClassifyTheNodeFast(consumer_index, level_index+1, 0);
+                ClassifyTheNode(consumer_index, level_index+1, 0);
             }
                 // 对于inception结构进行优化
             else if (consumer_op == "OP_CONCAT")
@@ -80,17 +81,17 @@ void InferencePipelineDesign::ClassifyTheNodeFast(int node_index, int level_inde
                     concat_rest_num[consumer_index]--;
                 }
                 else
-                    ClassifyTheNodeFast(consumer_index, concat_max_level[consumer_index], index_in_level+1);
+                    ClassifyTheNode(consumer_index, concat_max_level[consumer_index], index_in_level+1);
             }
             else
-                ClassifyTheNodeFast(consumer_index, level_index, index_in_level+1);
+                ClassifyTheNode(consumer_index, level_index, index_in_level+1);
         }
         return;
     }
 }
 
 static int node_visited[MAX_NODE] = {0};
-void InferencePipelineDesign::GetAugmentedNodeListFast(Json::Value &DNNInfo)
+void InferencePipelineDesign::GetAugmentedNodeList()
 {
     // 根据4_physical_crossbar_placement信息，添加CONV层或FC层的AG0_core_index和AG0_index_in_total的信息
     int crossbar_num = PIMCOM_4_physical_crossbar_placement.size();
@@ -113,7 +114,6 @@ void InferencePipelineDesign::GetAugmentedNodeListFast(Json::Value &DNNInfo)
     //   首先初始化
     for (int i = 0; i < node_num; ++i)
     {
-//        NodeList[i]["copy_offset_flag"] = 0;
         PIMCOM_node_list[i].copy_offset_flag = 0;
     }
 
@@ -152,12 +152,11 @@ void InferencePipelineDesign::GetAugmentedNodeListFast(Json::Value &DNNInfo)
 }
 
 static int visit_refine_node_list[MAX_NODE] = {0};
-void InferencePipelineDesign::RefineAugmentedNodeListFast(Json::Value &DNNInfo, int node_index, int level_index, int AG0_core_index, int AG0_index_in_total, int AG0_node_index)
+void InferencePipelineDesign::RefineAugmentedNodeList(int node_index, int level_index, int AG0_core_index, int AG0_index_in_total, int AG0_node_index)
 {
     // 5_1的目的很单纯，就是得到那些后处理节点的AG0_core_index和AG0_index_in_total。是5_2的准备阶段。
     // 如果不先得到这些后处理节点的信息，而是在5_2中一边生成信息一边生成指令，就会出现某些节点的AG0信息还没获取到就先被使用的情况。不可以。
 
-    // 这里的NodeList都是pipeline design中得到的Augmented NodeList
     int consumer_num = PIMCOM_node_list[node_index].consumer_num;
     if (consumer_num == 0)
     {
@@ -177,7 +176,7 @@ void InferencePipelineDesign::RefineAugmentedNodeListFast(Json::Value &DNNInfo, 
                     int consumer_AG0_core_index = PIMCOM_node_list[consumer_index].AG0_core_index;
                     int consumer_AG0_index_in_total = PIMCOM_node_list[consumer_index].AG0_index_in_total;
                     int consumer_AG0_node_index = PIMCOM_node_list[consumer_index].AG0_node_index;
-                    RefineAugmentedNodeListFast(DNNInfo,  consumer_index, consumer_level, consumer_AG0_core_index, consumer_AG0_index_in_total, consumer_AG0_node_index);
+                    RefineAugmentedNodeList( consumer_index, consumer_level, consumer_AG0_core_index, consumer_AG0_index_in_total, consumer_AG0_node_index);
                 }
             }
             else
@@ -188,14 +187,14 @@ void InferencePipelineDesign::RefineAugmentedNodeListFast(Json::Value &DNNInfo, 
                     PIMCOM_node_list[consumer_index].AG0_core_index = AG0_core_index;
                     PIMCOM_node_list[consumer_index].AG0_index_in_total = AG0_index_in_total;
                     PIMCOM_node_list[consumer_index].AG0_node_index = AG0_node_index;
-                    RefineAugmentedNodeListFast(DNNInfo, consumer_index, level_index, AG0_core_index, AG0_index_in_total, AG0_node_index);
+                    RefineAugmentedNodeList(consumer_index, level_index, AG0_core_index, AG0_index_in_total, AG0_node_index);
                 }
             }
         }
     }
 }
 
-void InferencePipelineDesign::GetPoolInfoFast(Json::Value &DNNInfo)
+void InferencePipelineDesign::GetPoolInfo()
 {
     PIMCOM_5_pool_info.resize(node_num);
     for (int n = 0; n < node_num; ++n)
@@ -270,7 +269,7 @@ void InferencePipelineDesign::GetPoolInfoFast(Json::Value &DNNInfo)
 }
 
 
-void InferencePipelineDesign::ShowClassificationInfoFast(Json::Value &DNNInfo)
+void InferencePipelineDesign::ShowClassificationInfo()
 {
     std::cout << "****************** Classification Result ********************" << std::endl;
     for (int i = 0; i < node_num; ++i)
@@ -281,3 +280,14 @@ void InferencePipelineDesign::ShowClassificationInfoFast(Json::Value &DNNInfo)
         std::cout << "    " << PIMCOM_node_list[i].level_index << "    " << PIMCOM_node_list[i].index_in_level << std::endl;
     }
 }
+
+//void InferencePipelineDesign::SaveJsonIR(Json::Value &DNNInfo, std::string ModelName)
+//{
+//    std::string strJson = DNNInfo.toStyledString();
+//    std::ofstream fob("../ir/"+ModelName+"/5_pd.json", std::ios::trunc | std::ios::out);
+//    if (fob.is_open())
+//    {
+//        fob.write(strJson.c_str(), strJson.length());
+//        fob.close();
+//    }
+//}
