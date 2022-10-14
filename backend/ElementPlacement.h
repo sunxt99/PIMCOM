@@ -5,7 +5,7 @@
 #ifndef PIMCOM_ELEMENTPLACEMENT_H
 #define PIMCOM_ELEMENTPLACEMENT_H
 
-#include "common.h"
+#include "../common.h"
 #include "../configure.h"
 
 class ElementPlacement

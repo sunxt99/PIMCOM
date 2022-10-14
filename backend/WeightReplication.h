@@ -5,9 +5,9 @@
 #ifndef PIMCOM_WEIGHTREPLICATION_H
 #define PIMCOM_WEIGHTREPLICATION_H
 
-#include "common.h"
-#include <random>
+#include "../common.h"
 #include "../configure.h"
+#include "PIMCOMVariable.h"
 
 class WeightReplication
 {

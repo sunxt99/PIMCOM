@@ -4,30 +4,8 @@
 
 #include "InferencePipelineSchedule.h"
 
-extern std::map<int, struct PIMCOM_node> PIMCOM_node_list;
-extern std::vector<struct PIMCOM_2_AG_partition> PIMCOM_2_AG_partition;
-extern std::vector<struct PIMCOM_2_virtual_crossbar> PIMCOM_2_virtual_crossbar;
-extern struct PIMCOM_2_resource_info PIMCOM_2_resource_info;
-extern std::vector<int> PIMCOM_2_effective_node;
-extern struct PIMCOM_3_hierarchy_map PIMCOM_3_hierarchy_map;
-extern std::map<int, std::vector<int>> PIMCOM_3_virtual_core_crossbar_map;
-extern std::map<int,int> PIMCOM_4_physical_core_placement;
-extern std::vector<struct PIMCOM_2_virtual_crossbar> PIMCOM_4_physical_crossbar_placement;
-//extern std::map<int, struct PIMCOM_5_pool_info> PIMCOM_5_pool_info;
-extern std::vector<struct PIMCOM_5_pool_info> PIMCOM_5_pool_info;
-
-std::map<int, int> PIMCOM_6_AG_instruction_group_num;
-struct PIMCOM_6_first_AG_info PIMCOM_6_first_AG_info;
-struct PIMCOM_6_physical_core_AG_map PIMCOM_6_physical_core_AG_map;
-struct PIMCOM_6_recv_info PIMCOM_6_recv_info;
-//std::map<int, struct PIMCOM_6_base_instruction_ir> PIMCOM_6_base_instruction_ir;
-std::vector<struct PIMCOM_6_instruction_ir> PIMCOM_6_base_instruction_ir;
-std::vector<std::vector<int>> PIMCOM_6_input_cycle_record;
-std::map<int, struct PIMCOM_6_instruction_ir> PIMCOM_6_post_instruction_ir;
-std::map<int, struct PIMCOM_6_instruction_ir> PIMCOM_6_post_multi_core_instruction_ir;
 
 
-static int AG_flags[MAX_AG] = {0};
 static int AG_accumulated_num[MAX_AG] = {0};
 static int AG_output_element_size[MAX_AG] = {0};
 
@@ -40,67 +18,48 @@ static int node_offset_instruction_group[MAX_AG] = {0};
 static int node_offset_inference[MAX_AG] = {0};
 static int node_offset_inference_old[MAX_AG] = {0};
 
-void InferencePipelineSchedule::ScheduleExecution()
+InferencePipelineSchedule::InferencePipelineSchedule(enum Mode RunMode)
 {
+    ScheduleMode = RunMode;
     core_num = PIMCOM_3_virtual_core_crossbar_map.size();
     node_num = PIMCOM_node_list.size();
+    AG_num_total = PIMCOM_3_hierarchy_map.whole.size();
+}
+
+void InferencePipelineSchedule::ScheduleExecution()
+{
     SchedulePreparation();
-    ScheduleNaive();
+    switch (ScheduleMode)
+    {
+        case Exploration:
+        {
+            ScheduleNaiveForEvaluation();
+            break;
+        }
+        case Generation:
+        {
+            ScheduleNaive();
+            break;
+        }
+    }
+    Clear();
 }
 
 void InferencePipelineSchedule::SchedulePreparation()
 {
-    //// 注意Naive写法是针对没有split_AG的情况。每个AG只有一个对应的Core
-    // 根据4_physical_crossbar_placement信息提供的Core上Crossbar的关系得到Core上AG的关系
-    int crossbar_num = PIMCOM_4_physical_crossbar_placement.size();
-    //// 注意这里的AG_flags最多支持10000个AG的系统
-    // （要得到AG的信息，遍历core_Crossbar）
-    for (int i = 0; i < crossbar_num; ++i)
-    {
-        int AG_index = PIMCOM_4_physical_crossbar_placement[i].array_group_total;
-        if (AG_flags[AG_index] != 1)
-        {
-            AG_flags[AG_index] = 1;
-            int core_index = PIMCOM_4_physical_crossbar_placement[i].physical_core;
-            int rep_index = PIMCOM_4_physical_crossbar_placement[i].replication_index;
-            int node_index = PIMCOM_4_physical_crossbar_placement[i].node_index;
-            int AG_index_in_total = PIMCOM_4_physical_crossbar_placement[i].array_group_total;
-            int AG_index_in_replication = PIMCOM_4_physical_crossbar_placement[i].array_group_in_weight;
-            int AG_num_per_replication = PIMCOM_4_physical_crossbar_placement[i].AG_num_per_replication;
-
-            struct AG_info_schedule AGInfo;
-            AGInfo.AG_index_in_total = AG_index_in_total;
-            AGInfo.AG_index_in_replication = AG_index_in_replication;
-            AGInfo.AG_num_per_replication = AG_num_per_replication;
-            AGInfo.replication_index = rep_index;
-            AGInfo.AGP = PIMCOM_node_list[node_index].AGP;
-            AGInfo.agp_index = PIMCOM_4_physical_crossbar_placement[i].agp_index;
-            AGInfo.agp_offset = PIMCOM_4_physical_crossbar_placement[i].agp_offset;
-            AGInfo.replication_num = PIMCOM_node_list[node_index].replication_num;
-            AGInfo.replication_num_origin = PIMCOM_node_list[node_index].replication_num_origin;
-            AGInfo.input_cycle_in_total = PIMCOM_node_list[node_index].input_cycle_in_total;
-            AGInfo.input_cycle_this_replication = PIMCOM_4_physical_crossbar_placement[i].input_cycle_this_replication;
-            AGInfo.input_cycle_this_replication_start = PIMCOM_4_physical_crossbar_placement[i].input_cycle_this_replication_start;
-            AGInfo.input_cycle_this_replication_end = PIMCOM_4_physical_crossbar_placement[i].input_cycle_this_replication_end;
-            AGInfo.level_index = PIMCOM_node_list[node_index].level_index;
-
-            PIMCOM_6_physical_core_AG_map.core_list[core_index].AG_list.push_back(AGInfo);
-            PIMCOM_6_physical_core_AG_map.core_list[core_index].node_list.push_back(node_index);
-        }
-    }
-
+    //// 其他操作都放到了Hierarchy Mapping阶段完成
     //// 得到两个调度过程中需要的值（每个结点Rep0 AG0所在的核、以及每个结点每个Rep的AG0所在的核）
     for (int i = 0; i < core_num; ++i)
     {
-        int AG_num = PIMCOM_6_physical_core_AG_map.core_list[i].AG_list.size();
+        int AG_num = PIMCOM_4_virtual_core_AG_map.core_list[i].AG_list.size();
         for (int j = 0; j < AG_num; ++j)
         {
-            int AG_index_in_replication = PIMCOM_6_physical_core_AG_map.core_list[i].AG_list[j].AG_index_in_replication;
+            int AG_index_in_replication = PIMCOM_4_virtual_core_AG_map.core_list[i].AG_list[j].AG_index_in_replication;
             if (AG_index_in_replication == 0)
             {
-                int node_index = PIMCOM_6_physical_core_AG_map.core_list[i].node_list[j];
-                int replication_index = PIMCOM_6_physical_core_AG_map.core_list[i].AG_list[j].replication_index;
-                PIMCOM_6_first_AG_info.node_list[node_index].replication_list[replication_index] = i;
+                int node_index = PIMCOM_4_virtual_core_AG_map.core_list[i].node_list[j];
+                int replication_index = PIMCOM_4_virtual_core_AG_map.core_list[i].AG_list[j].replication_index;
+                PIMCOM_4_first_AG_info.node_list[node_index].replication_list[replication_index] = i;
             }
         }
     }
@@ -110,11 +69,11 @@ void InferencePipelineSchedule::SchedulePreparation()
     int node_appearance_element[MAX_NODE] = {0};
     for (int i = 0; i < core_num; ++i)
     {
-        int AG_num = PIMCOM_6_physical_core_AG_map.core_list[i].AG_list.size();
-        int pre_node_index = PIMCOM_6_physical_core_AG_map.core_list[i].node_list[0];
-        int pre_replication_index = PIMCOM_6_physical_core_AG_map.core_list[i].AG_list[0].replication_index;
-        int pre_AG_index = PIMCOM_6_physical_core_AG_map.core_list[i].AG_list[0].AG_index_in_total;
-        int pre_AG_index_in_replication = PIMCOM_6_physical_core_AG_map.core_list[i].AG_list[0].AG_index_in_replication;
+        int AG_num = PIMCOM_4_virtual_core_AG_map.core_list[i].AG_list.size();
+        int pre_node_index = PIMCOM_4_virtual_core_AG_map.core_list[i].node_list[0];
+        int pre_replication_index = PIMCOM_4_virtual_core_AG_map.core_list[i].AG_list[0].replication_index;
+        int pre_AG_index = PIMCOM_4_virtual_core_AG_map.core_list[i].AG_list[0].AG_index_in_total;
+        int pre_AG_index_in_replication = PIMCOM_4_virtual_core_AG_map.core_list[i].AG_list[0].AG_index_in_replication;
 
         int pre_core_index = i;
         int pre_AG_height = PIMCOM_3_hierarchy_map.whole[pre_AG_index][0].height_end - PIMCOM_3_hierarchy_map.whole[pre_AG_index][0].height_start + 1;
@@ -131,15 +90,15 @@ void InferencePipelineSchedule::SchedulePreparation()
             RecvInfo.recv_num = 1;
             RecvInfo.recv_element = pre_AG_height;
         }
-        PIMCOM_6_recv_info.node_list[pre_node_index].push_back(RecvInfo);
+        PIMCOM_4_recv_info.node_list[pre_node_index].push_back(RecvInfo);
         node_appearance_num[pre_node_index]++;
         node_appearance_element[pre_node_index] += pre_AG_height;
         for (int j = 1; j < AG_num; ++j)
         {
-            int node_index = PIMCOM_6_physical_core_AG_map.core_list[i].node_list[j];
-            int replication_index = PIMCOM_6_physical_core_AG_map.core_list[i].AG_list[j].replication_index;
-            int AG_index = PIMCOM_6_physical_core_AG_map.core_list[i].AG_list[j].AG_index_in_total;
-            int AG_index_in_replication = PIMCOM_6_physical_core_AG_map.core_list[i].AG_list[j].AG_index_in_replication;
+            int node_index = PIMCOM_4_virtual_core_AG_map.core_list[i].node_list[j];
+            int replication_index = PIMCOM_4_virtual_core_AG_map.core_list[i].AG_list[j].replication_index;
+            int AG_index = PIMCOM_4_virtual_core_AG_map.core_list[i].AG_list[j].AG_index_in_total;
+            int AG_index_in_replication = PIMCOM_4_virtual_core_AG_map.core_list[i].AG_list[j].AG_index_in_replication;
             int AG_height = PIMCOM_3_hierarchy_map.whole[AG_index][0].height_end - PIMCOM_3_hierarchy_map.whole[AG_index][0].height_start + 1;
 
             if (node_index != pre_node_index || pre_replication_index != replication_index)
@@ -157,15 +116,15 @@ void InferencePipelineSchedule::SchedulePreparation()
                     RecvInfo2.recv_num = 1;
                     RecvInfo2.recv_element = AG_height;
                 }
-                PIMCOM_6_recv_info.node_list[node_index].push_back(RecvInfo2);
+                PIMCOM_4_recv_info.node_list[node_index].push_back(RecvInfo2);
             }
             else
             {
                 if (PIMCOM_node_list[node_index].operation == "OP_FC")
                 {
-                    int already_num = PIMCOM_6_recv_info.node_list[node_index].size();
-                    PIMCOM_6_recv_info.node_list[node_index][already_num - 1].recv_num += 1;
-                    PIMCOM_6_recv_info.node_list[node_index][already_num - 1].recv_element += AG_height;
+                    int already_num = PIMCOM_4_recv_info.node_list[node_index].size();
+                    PIMCOM_4_recv_info.node_list[node_index][already_num - 1].recv_num += 1;
+                    PIMCOM_4_recv_info.node_list[node_index][already_num - 1].recv_element += AG_height;
                 }
             }
             node_appearance_num[node_index]++;
@@ -174,109 +133,88 @@ void InferencePipelineSchedule::SchedulePreparation()
             pre_node_index = node_index;
         }
     }
-
-//    std::cout << "****************** Mapping Result ********************" << std::endl;
-//    for (int i = 0; i < core_num; ++i)
-//    {
-//        std::cout << i << std::endl;
-//        int AG_num = PIMCOM_6_physical_core_AG_map.core_list[i].AG_list.size();
-//        for (int j = 0; j < AG_num; ++j)
-//        {
-//            std::cout << "    " << PIMCOM_6_physical_core_AG_map.core_list[i].node_list[j]
-//                      << "    " << PIMCOM_6_physical_core_AG_map.core_list[i].AG_list[j].replication_index
-//                      << "    " << PIMCOM_6_physical_core_AG_map.core_list[i].AG_list[j].AG_index_in_replication
-//                      << "   | " << PIMCOM_6_physical_core_AG_map.core_list[i].AG_list[j].AG_index_in_total << std::endl;
-//        }
-//    }
-
-    //// 得到每个AG的instruction_group_num
-    for (int i = 0; i < PIMCOM_2_AG_partition.size(); ++i)
-    {
-        int replication_num = PIMCOM_2_AG_partition[i].replication_num;
-        for (int j = 0; j < replication_num; ++j)
-        {
-            PIMCOM_2_AG_partition[i].replication[j].instruction_group_num = static_cast<int>(ceil(float(PIMCOM_2_AG_partition[i].replication[j].input_cycle_this_replication) / float(operation_cycle_before_comm)));
-            int AG_num = PIMCOM_2_AG_partition[i].replication[j].AG_list.size();
-            for (int k = 0; k < AG_num; ++k)
-            {
-                int AG_index = PIMCOM_2_AG_partition[i].replication[j].AG_list[k].AG_index;
-                PIMCOM_3_hierarchy_map.whole[AG_index][0].instruction_group_num = PIMCOM_2_AG_partition[i].replication[j].instruction_group_num;
-                PIMCOM_6_AG_instruction_group_num[AG_index] = PIMCOM_2_AG_partition[i].replication[j].instruction_group_num;
-            }
-        }
-    }
 }
 
-
+clock_t USE = 0;
 void InferencePipelineSchedule::ScheduleNaiveStage1( int instruction_group_index, bool append_instruction)
 {
     //// 首先为每个AG生成MVMUL操作
     for (int i = 0; i < core_num; ++i)
     {
-        int AG_num = PIMCOM_6_physical_core_AG_map.core_list[i].AG_list.size();
-        struct core_schedule current_core = PIMCOM_6_physical_core_AG_map.core_list[i];
+        if (PIMCOM_4_core_instruction_group_num[i] < instruction_group_index)
+            continue;
+        int AG_num = PIMCOM_4_virtual_core_AG_map.core_list[i].AG_list.size();
+        struct core_schedule current_core = PIMCOM_4_virtual_core_AG_map.core_list[i];
         for (int j = 0; j < AG_num; ++j)
         {
-            struct INST Instruction;
             int AG_index_in_total = current_core.AG_list[j].AG_index_in_total;
-            int AG_index_in_replication = current_core.AG_list[j].AG_index_in_replication;
-            int AG_num_per_replication = current_core.AG_list[j].AG_num_per_replication;
-            int input_cycle_in_total = current_core.AG_list[j].input_cycle_in_total;
-            
-            int replication_index = current_core.AG_list[j].replication_index;
-            int replication_num = current_core.AG_list[j].replication_num;
-            int node_index = current_core.node_list[j];
-            int AGP = current_core.AG_list[j].AGP;
-            int agp_index = current_core.AG_list[j].agp_index;
-            int agp_offset = current_core.AG_list[j].agp_offset;
             // 注意: 这里的start和end都包括，也就是input_cycle数量为end-start+1
             int input_cycle_this_replication_start = current_core.AG_list[j].input_cycle_this_replication_start;
             int input_cycle_this_replication_end = current_core.AG_list[j].input_cycle_this_replication_end;
-            int level_index = current_core.AG_list[j].level_index;
 
             if (input_cycle_this_replication_start + AG_accumulated_num[AG_index_in_total] <= input_cycle_this_replication_end) // 例子。每个节点的输入个数为Line11所示。
             {
-                Instruction.type = MVMUL;
-                Instruction.operation = "MVMUL";
-                Instruction.AG_num_per_replication = AG_num_per_replication;
-                Instruction.input_cycle_index = input_cycle_this_replication_start + AG_accumulated_num[AG_index_in_total];
-                Instruction.AG_index_in_total = AG_index_in_total;
-                Instruction.replication_index = replication_index;
-                Instruction.replication_num = replication_num;
-                Instruction.input_cycle_in_total = input_cycle_in_total;
-                Instruction.AG_index_in_replication = AG_index_in_replication;
-                Instruction.input_cycle_this_replication_start = input_cycle_this_replication_start;
-                Instruction.input_cycle_this_replication_end = input_cycle_this_replication_end;
-                Instruction.conv_or_fc = PIMCOM_node_list[node_index].operation;
-                Instruction.node_index = node_index;
-                Instruction.AGP = AGP;
-                Instruction.agp_index = agp_index;
-                Instruction.destination = Instruction.AG_index_in_total;
-                Instruction.source = Instruction.AG_index_in_total;
-                Instruction.level_index = level_index;
-
-                // get the input_element_num and output_element_num
-                int effective_node_index = PIMCOM_node_list[node_index].effective_node_index;
-                int crossbar_num = PIMCOM_2_AG_partition[effective_node_index].replication[replication_index].AG_list[AG_index_in_replication].virtual_crossbar_list.size();
-                int crossbar_start_index = PIMCOM_2_AG_partition[effective_node_index].replication[replication_index].AG_list[AG_index_in_replication].virtual_crossbar_list[0];
-                int crossbar_end_index = PIMCOM_2_AG_partition[effective_node_index].replication[replication_index].AG_list[AG_index_in_replication].virtual_crossbar_list[crossbar_num - 1];
-                int input_element_num = PIMCOM_2_virtual_crossbar[crossbar_start_index].height_end - PIMCOM_2_virtual_crossbar[crossbar_start_index].height_start + 1;
-                int output_element_num = PIMCOM_2_virtual_crossbar[crossbar_end_index].width_end - PIMCOM_2_virtual_crossbar[crossbar_start_index].width_start + 1;
-                Instruction.input_element_num = input_element_num;
-                Instruction.output_element_num = output_element_num;
-                AG_output_element_size[AG_index_in_total] = output_element_num;
-                Instruction.rs_offset = 0;
-                Instruction.rd_offset = node_offset_inference[AG_index_in_total] * output_element_num + agp_offset;
-                Instruction.instruction_group_index = instruction_group_index;
-                if(append_instruction)
+                int node_index = current_core.node_list[j];
+                int replication_index = current_core.AG_list[j].replication_index;
+                int AG_index_in_replication = current_core.AG_list[j].AG_index_in_replication;
+                if (append_instruction)
                 {
-                    PIMCOM_6_base_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction);
+                    int AG_num_per_replication = current_core.AG_list[j].AG_num_per_replication;
+                    int input_cycle_in_total = current_core.AG_list[j].input_cycle_in_total;
+                    int replication_num = current_core.AG_list[j].replication_num;
+                    int AGP = current_core.AG_list[j].AGP;
+                    int agp_index = current_core.AG_list[j].agp_index;
+                    int agp_offset = current_core.AG_list[j].agp_offset;
+                    int level_index = current_core.AG_list[j].level_index;
+                    int input_element_num = current_core.AG_list[j].input_element_num;
+                    int output_element_num = current_core.AG_list[j].output_element_num;
+
+                    struct INST Instruction;
+                    Instruction.type = MVMUL;
+                    Instruction.operation = "MVMUL";
+                    Instruction.AG_num_per_replication = AG_num_per_replication;
+                    Instruction.input_cycle_index = input_cycle_this_replication_start + AG_accumulated_num[AG_index_in_total];
+                    Instruction.AG_index_in_total = AG_index_in_total;
+                    Instruction.replication_index = replication_index;
+                    Instruction.replication_num = replication_num;
+                    Instruction.input_cycle_in_total = input_cycle_in_total;
+                    Instruction.AG_index_in_replication = AG_index_in_replication;
+                    Instruction.input_cycle_this_replication_start = input_cycle_this_replication_start;
+                    Instruction.input_cycle_this_replication_end = input_cycle_this_replication_end;
+                    Instruction.conv_or_fc = PIMCOM_node_list[node_index].operation;
+                    Instruction.node_index = node_index;
+                    Instruction.AGP = AGP;
+                    Instruction.agp_index = agp_index;
+                    Instruction.destination = Instruction.AG_index_in_total;
+                    Instruction.source = Instruction.AG_index_in_total;
+                    Instruction.level_index = level_index;
+
+                    // get the input_element_num and output_element_num
+                    Instruction.input_element_num = input_element_num;
+                    Instruction.output_element_num = output_element_num;
+//                    AG_output_element_size[AG_index_in_total] = output_element_num;
+                    Instruction.rs_offset = 0;
+                    Instruction.rd_offset = node_offset_inference[AG_index_in_total] * output_element_num + agp_offset;
+                    Instruction.instruction_group_index = instruction_group_index;
+                    PIMCOM_4_base_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction);
+                }
+                clock_t time1 = clock();
+//                for AG_output_element_size
+                if (AG_accumulated_num[AG_index_in_total] == 0)
+                {
+                    int effective_node_index = PIMCOM_node_list[node_index].effective_node_index;
+                    int crossbar_num = PIMCOM_2_AG_partition[effective_node_index].replication[replication_index].AG_list[AG_index_in_replication].virtual_crossbar_list.size();
+                    int crossbar_start_index = PIMCOM_2_AG_partition[effective_node_index].replication[replication_index].AG_list[AG_index_in_replication].virtual_crossbar_list[0];
+                    int crossbar_end_index = PIMCOM_2_AG_partition[effective_node_index].replication[replication_index].AG_list[AG_index_in_replication].virtual_crossbar_list[crossbar_num - 1];
+                    int input_element_num = PIMCOM_2_virtual_crossbar[crossbar_start_index].height_end - PIMCOM_2_virtual_crossbar[crossbar_start_index].height_start + 1;
+                    int output_element_num = PIMCOM_2_virtual_crossbar[crossbar_end_index].width_end - PIMCOM_2_virtual_crossbar[crossbar_start_index].width_start + 1;
+                    AG_output_element_size[AG_index_in_total] = output_element_num;
                 }
 
 //                 for stage_2 ADD
                 if (j != 0)
                 {
-                    if (node_index == PIMCOM_6_physical_core_AG_map.core_list[i].node_list[j-1] && replication_index == PIMCOM_6_physical_core_AG_map.core_list[i].AG_list[j-1].replication_index)
+                    if (node_index == PIMCOM_4_virtual_core_AG_map.core_list[i].node_list[j-1] && replication_index == PIMCOM_4_virtual_core_AG_map.core_list[i].AG_list[j-1].replication_index)
                     {
                         add_flag[AG_index_in_total] = 1;
                     }
@@ -287,24 +225,29 @@ void InferencePipelineSchedule::ScheduleNaiveStage1( int instruction_group_index
                     activate_flag[AG_index_in_total] = 1;
                 }
 
-                // for stage_3 SEND/RECV
-                if (AG_index_in_replication != 0)
-                {
-                    int estimate_first_AG_index = j - AG_index_in_replication;
-                    if (estimate_first_AG_index < 0 ||
-                        current_core.AG_list[estimate_first_AG_index].AG_index_in_replication != 0 ||
-                        current_core.AG_list[estimate_first_AG_index].replication_index != replication_index ||
-                        current_core.node_list[estimate_first_AG_index] != node_index)
-                    {
-                        comm_flag[AG_index_in_total] = 1;
-                    }
-                }
+//                // for stage_3 SEND/RECV
+//                if (AG_index_in_replication != 0)
+//                {
+//                    int estimate_first_AG_index = j - AG_index_in_replication;
+//                    if (estimate_first_AG_index < 0 ||
+//                        current_core.AG_list[estimate_first_AG_index].AG_index_in_replication != 0 ||
+//                        current_core.AG_list[estimate_first_AG_index].replication_index != replication_index ||
+//                        current_core.node_list[estimate_first_AG_index] != node_index)
+//                    {
+//                        comm_flag[AG_index_in_total] = 1;
+//                    }
+//                }
+                //// for stage_3 SEND/RECV (具体的判断条件在函数中写)
+                comm_flag[AG_index_in_total] = 1;
 
-                // for stage_4 WB
-                if (AG_index_in_replication == 0)
-                {
-                    wb_flag[AG_index_in_total] = 1;
-                }
+
+//                // for stage_4 WB
+//                if (AG_index_in_replication == 0)
+//                {
+//                    wb_flag[AG_index_in_total] = 1;
+//                }
+                //// for stage_4 WB (具体的判断条件在函数中写)
+                wb_flag[AG_index_in_total] = 1;
 
                 // consider the offset
                 node_offset_instruction_group[AG_index_in_total] += 1;
@@ -312,21 +255,140 @@ void InferencePipelineSchedule::ScheduleNaiveStage1( int instruction_group_index
 
                 // record the input_cycle_index
                 if (AG_index_in_replication == 0)
-                    PIMCOM_6_input_cycle_record[node_index].push_back(input_cycle_this_replication_start+AG_accumulated_num[AG_index_in_total]);
+                    PIMCOM_4_input_cycle_record[node_index].push_back(input_cycle_this_replication_start+AG_accumulated_num[AG_index_in_total]);
 
                 AG_accumulated_num[AG_index_in_total] += 1;
+                clock_t time2 = clock();
+                USE += time2 - time1;
             }
         }
     }
 }
 
 
-void InferencePipelineSchedule::ScheduleNaiveStage2( int instruction_group_index)
+void InferencePipelineSchedule::ScheduleNaiveStage1ForEvaluation(int instruction_group_index, int operation_cycle_index, bool append_instruction)
+{
+    //// 首先为每个AG生成MVMUL操作
+    for (int i = 0; i < core_num; ++i)
+    {
+        if (PIMCOM_4_core_instruction_group_num[i] < instruction_group_index)
+            continue;
+        int AG_num = PIMCOM_4_virtual_core_AG_map.core_list[i].AG_list.size();
+        struct core_schedule current_core = PIMCOM_4_virtual_core_AG_map.core_list[i];
+        for (int j = 0; j < AG_num; ++j)
+        {
+            int AG_index_in_total = current_core.AG_list[j].AG_index_in_total;
+            // 注意: 这里的start和end都包括，也就是input_cycle数量为end-start+1
+            int input_cycle_this_replication_start = current_core.AG_list[j].input_cycle_this_replication_start;
+            int input_cycle_this_replication_end = current_core.AG_list[j].input_cycle_this_replication_end;
+
+//            if (input_cycle_this_replication_start + AG_accumulated_num[AG_index_in_total] <= input_cycle_this_replication_end)
+            if (input_cycle_this_replication_start + operation_cycle_index <= input_cycle_this_replication_end)
+            {
+                int node_index = current_core.node_list[j];
+                int replication_index = current_core.AG_list[j].replication_index;
+                int AG_index_in_replication = current_core.AG_list[j].AG_index_in_replication;
+                if (append_instruction)
+                {
+                    int AG_num_per_replication = current_core.AG_list[j].AG_num_per_replication;
+                    int input_cycle_in_total = current_core.AG_list[j].input_cycle_in_total;
+                    int replication_num = current_core.AG_list[j].replication_num;
+                    int AGP = current_core.AG_list[j].AGP;
+                    int agp_index = current_core.AG_list[j].agp_index;
+                    int agp_offset = current_core.AG_list[j].agp_offset;
+                    int level_index = current_core.AG_list[j].level_index;
+                    int input_element_num = current_core.AG_list[j].input_element_num;
+                    int output_element_num = current_core.AG_list[j].output_element_num;
+
+                    struct INST Instruction;
+                    Instruction.type = MVMUL;
+                    Instruction.operation = "MVMUL";
+                    Instruction.AG_num_per_replication = AG_num_per_replication;
+                    Instruction.input_cycle_index = input_cycle_this_replication_start + operation_cycle_index;
+                    Instruction.AG_index_in_total = AG_index_in_total;
+                    Instruction.replication_index = replication_index;
+                    Instruction.replication_num = replication_num;
+                    Instruction.input_cycle_in_total = input_cycle_in_total;
+                    Instruction.AG_index_in_replication = AG_index_in_replication;
+                    Instruction.input_cycle_this_replication_start = input_cycle_this_replication_start;
+                    Instruction.input_cycle_this_replication_end = input_cycle_this_replication_end;
+                    Instruction.conv_or_fc = PIMCOM_node_list[node_index].operation;
+                    Instruction.node_index = node_index;
+                    Instruction.AGP = AGP;
+                    Instruction.agp_index = agp_index;
+                    Instruction.destination = Instruction.AG_index_in_total;
+                    Instruction.source = Instruction.AG_index_in_total;
+                    Instruction.level_index = level_index;
+
+                    // get the input_element_num and output_element_num
+                    Instruction.input_element_num = input_element_num;
+                    Instruction.output_element_num = output_element_num;
+                    Instruction.rs_offset = 0;
+                    Instruction.rd_offset = node_offset_inference[AG_index_in_total] * output_element_num + agp_offset;
+                    Instruction.instruction_group_index = instruction_group_index;
+                    PIMCOM_4_base_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction);
+                }
+
+                clock_t time1 = clock();
+                //// 这里AG_accumulated_num作用发生了变化。以前是记录每个AG出现的次数，现在只是指示该AG是否出现过。
+                if (AG_accumulated_num[AG_index_in_total] == 0)
+                {
+                    int effective_node_index = PIMCOM_node_list[node_index].effective_node_index;
+                    int crossbar_num = PIMCOM_2_AG_partition[effective_node_index].replication[replication_index].AG_list[AG_index_in_replication].virtual_crossbar_list.size();
+                    int crossbar_start_index = PIMCOM_2_AG_partition[effective_node_index].replication[replication_index].AG_list[AG_index_in_replication].virtual_crossbar_list[0];
+                    int crossbar_end_index = PIMCOM_2_AG_partition[effective_node_index].replication[replication_index].AG_list[AG_index_in_replication].virtual_crossbar_list[crossbar_num - 1];
+                    int input_element_num = PIMCOM_2_virtual_crossbar[crossbar_start_index].height_end - PIMCOM_2_virtual_crossbar[crossbar_start_index].height_start + 1;
+                    int output_element_num = PIMCOM_2_virtual_crossbar[crossbar_end_index].width_end - PIMCOM_2_virtual_crossbar[crossbar_start_index].width_start + 1;
+                    AG_output_element_size[AG_index_in_total] = output_element_num;
+                    AG_accumulated_num[AG_index_in_total] = 1;
+                }
+
+                //// for stage_2 ADD
+                if (j != 0)
+                {
+                    if (node_index == PIMCOM_4_virtual_core_AG_map.core_list[i].node_list[j-1] && replication_index == PIMCOM_4_virtual_core_AG_map.core_list[i].AG_list[j-1].replication_index)
+                    {
+                        add_flag[AG_index_in_total] = 1;
+                    }
+                }
+
+                if (AG_index_in_replication == 0)
+                {
+                    activate_flag[AG_index_in_total] = 1;
+                }
+
+                //// for stage_3 SEND/RECV (具体的判断条件在函数中写)
+                comm_flag[AG_index_in_total] = 1;
+
+                //// for stage_4 WB (具体的判断条件在函数中写)
+                wb_flag[AG_index_in_total] = 1;
+
+                //// consider the offset
+                node_offset_instruction_group[AG_index_in_total] += 1;
+                node_offset_inference[AG_index_in_total] += 1;
+
+                //// record the input_cycle_index
+                if (AG_index_in_replication == 0)
+                {
+//                    PIMCOM_4_input_cycle_record[node_index].push_back(input_cycle_this_replication_start+AG_accumulated_num[AG_index_in_total]);
+                    PIMCOM_4_input_cycle_record[node_index].push_back(input_cycle_this_replication_start + operation_cycle_index);
+                }
+//                AG_accumulated_num[AG_index_in_total] += 1;
+                clock_t time2 = clock();
+                USE += time2 - time1;
+            }
+        }
+    }
+}
+
+void InferencePipelineSchedule::ScheduleNaiveStage2( int instruction_group_index, bool append_instruction)
 {
     //// 同一结点且同一权重块的AG之间的结果融合（VADD）
     for (int i = 0; i < core_num; ++i)
     {
-        struct core_schedule current_core = PIMCOM_6_physical_core_AG_map.core_list[i];
+        if (PIMCOM_4_core_instruction_group_num[i] < instruction_group_index)
+            continue;
+        struct core_schedule current_core = PIMCOM_4_virtual_core_AG_map.core_list[i];
         int AG_num = current_core.AG_list.size();
         int node_index = current_core.node_list[0];
         int replication_index = current_core.AG_list[0].replication_index;
@@ -356,7 +418,8 @@ void InferencePipelineSchedule::ScheduleNaiveStage2( int instruction_group_index
                     Instruction.rd_offset = (node_offset_inference[AG_index_in_total] - 1)* Instruction.element_num;
                     Instruction.rs1_offset = Instruction.rd_offset;
                     Instruction.rs2_offset = Instruction.rd_offset;
-                    PIMCOM_6_base_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction);
+                    if(append_instruction)
+                        PIMCOM_4_base_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction);
                     p += 1;
                 }
             }
@@ -370,14 +433,15 @@ void InferencePipelineSchedule::ScheduleNaiveStage2( int instruction_group_index
     }
 }
 
-void InferencePipelineSchedule::ScheduleNaiveStage3( int instruction_group_index)
+static int comm_index = 0;
+void InferencePipelineSchedule::ScheduleNaiveStage3(int instruction_group_index, bool append_instruction)
 {
-    int comm_index = 0;
     //// 结果发送与融合
     for (int i = 0; i < core_num; ++i)
     {
-//        std::map<int, struct core_schedule> core_list = PIMCOM_6_physical_core_AG_map.core_list;
-        struct core_schedule current_core = PIMCOM_6_physical_core_AG_map.core_list[i];
+        if (PIMCOM_4_core_instruction_group_num[i] < instruction_group_index)
+            continue;
+        struct core_schedule current_core = PIMCOM_4_virtual_core_AG_map.core_list[i];
         int AG_num = current_core.AG_list.size();
         for (int j = 0; j < AG_num; ++j)
         {
@@ -386,24 +450,38 @@ void InferencePipelineSchedule::ScheduleNaiveStage3( int instruction_group_index
             int AG_index_in_replication = current_core.AG_list[j].AG_index_in_replication;
             int AG_index_in_total = current_core.AG_list[j].AG_index_in_total;
             int level_index = current_core.AG_list[j].level_index;
-            bool SendRecv = false;
-            if (AG_index_in_replication != 0)
-            {
-                int estimate_first_AG_index =  j - AG_index_in_replication;
 
-                if (estimate_first_AG_index < 0 ||
-                    current_core.AG_list[estimate_first_AG_index].AG_index_in_replication != 0 ||
-                    current_core.AG_list[estimate_first_AG_index].replication_index != replication_index ||
-                    current_core.node_list[estimate_first_AG_index] != node_index )
+            if (AG_index_in_replication != 0  && comm_flag[AG_index_in_total] == 1)
+            {
+                //// 这样要保证同一Rep的AG连续且递增，不够灵活
+//                bool SendRecv = false;
+//                int estimate_first_AG_index =  j - AG_index_in_replication;
+//                if (estimate_first_AG_index < 0 ||
+//                    current_core.AG_list[estimate_first_AG_index].AG_index_in_replication != 0 ||
+//                    current_core.AG_list[estimate_first_AG_index].replication_index != replication_index ||
+//                    current_core.node_list[estimate_first_AG_index] != node_index )
+//                {
+//                    SendRecv = true;
+//                }
+//                if(SendRecv)
+
+                //// 只要求递增即可，可以不连续
+                bool SendRecv = true;
+                for (int k = 1; k <= AG_index_in_replication; ++k)
                 {
-                    if (comm_flag[AG_index_in_total] == 1)
+                    int estimate_first_AG_index = j - k;
+                    if (estimate_first_AG_index >= 0 &&
+                        current_core.AG_list[estimate_first_AG_index].AG_index_in_replication == 0 &&
+                        current_core.AG_list[estimate_first_AG_index].replication_index == replication_index &&
+                        current_core.node_list[estimate_first_AG_index] == node_index )
                     {
-                        SendRecv = true;
+                        SendRecv = false;
+                        break;
                     }
                 }
                 if (SendRecv)
                 {
-                    int RecvCore = PIMCOM_6_first_AG_info.node_list[node_index].replication_list[replication_index];
+                    int RecvCore = PIMCOM_4_first_AG_info.node_list[node_index].replication_list[replication_index];
                     // 添加发送接收指令和结果融合指令。
                     struct INST Instruction_send;
                     Instruction_send.type = COMM;
@@ -417,8 +495,9 @@ void InferencePipelineSchedule::ScheduleNaiveStage3( int instruction_group_index
                     Instruction_send.AGP = current_core.AG_list[j].AGP;
                     Instruction_send.agp_index = current_core.AG_list[j].agp_index;
                     Instruction_send.comm_index = comm_index;
-                    Instruction_send.instruction_index_in_core = PIMCOM_6_base_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.size();
-                    PIMCOM_6_base_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_send);
+                    Instruction_send.instruction_index_in_core = PIMCOM_4_base_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.size();
+                    if(append_instruction)
+                        PIMCOM_4_base_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_send);
 
                     struct INST Instruction_recv;
                     Instruction_recv.type = COMM;
@@ -433,14 +512,15 @@ void InferencePipelineSchedule::ScheduleNaiveStage3( int instruction_group_index
                     Instruction_recv.AGP = current_core.AG_list[j].AGP;
                     Instruction_recv.agp_index = current_core.AG_list[j].agp_index;
                     Instruction_recv.comm_index = comm_index;
-                    Instruction_recv.instruction_index_in_core = PIMCOM_6_base_instruction_ir[instruction_group_index].core_list[RecvCore].instruction_ir_list.size();
-                    PIMCOM_6_base_instruction_ir[instruction_group_index].core_list[RecvCore].instruction_ir_list.push_back(Instruction_recv);
+                    Instruction_recv.instruction_index_in_core = PIMCOM_4_base_instruction_ir[instruction_group_index].core_list[RecvCore].instruction_ir_list.size();
+                    if(append_instruction)
+                        PIMCOM_4_base_instruction_ir[instruction_group_index].core_list[RecvCore].instruction_ir_list.push_back(Instruction_recv);
 
                     struct INST Instruction_vadd;
                     Instruction_vadd.type = VEC2OP;
                     Instruction_vadd.level_index = level_index;
                     Instruction_vadd.operation = "VADD";
-                    struct core_schedule recv_core = PIMCOM_6_physical_core_AG_map.core_list[RecvCore];
+                    struct core_schedule recv_core = PIMCOM_4_virtual_core_AG_map.core_list[RecvCore];
                     int tmp_AG_num = recv_core.AG_list.size();
                     // tmp_ag_total_index是RecvCore中同node同rep的AG0对应的位置
                     int tmp_ag_total_index = 0;
@@ -449,7 +529,9 @@ void InferencePipelineSchedule::ScheduleNaiveStage3( int instruction_group_index
                         if( recv_core.node_list[k] == node_index &&
                             recv_core.AG_list[k].AG_index_in_replication == 0 &&
                             recv_core.AG_list[k].replication_index == replication_index )
-                                tmp_ag_total_index = recv_core.AG_list[k].AG_index_in_total;
+                        {
+                            tmp_ag_total_index = recv_core.AG_list[k].AG_index_in_total;
+                        }
                     }
                     Instruction_vadd.source_1 = tmp_ag_total_index;
                     Instruction_vadd.source_2 = AG_index_in_total;
@@ -462,7 +544,8 @@ void InferencePipelineSchedule::ScheduleNaiveStage3( int instruction_group_index
                     Instruction_vadd.relative_length = node_offset_instruction_group[node_index];
                     Instruction_vadd.element_num = Instruction_vadd.relative_length * AG_output_element_size[AG_index_in_total];
                     Instruction_vadd.instruction_group_index = instruction_group_index;
-                    PIMCOM_6_base_instruction_ir[instruction_group_index].core_list[RecvCore].instruction_ir_list.push_back(Instruction_vadd);
+                    if(append_instruction)
+                        PIMCOM_4_base_instruction_ir[instruction_group_index].core_list[RecvCore].instruction_ir_list.push_back(Instruction_vadd);
 
                     comm_index++;
                     // 因为之前经过了信息融合，所以不需要多次发送接收。跳过后面同一Rep的其他AG。
@@ -476,11 +559,16 @@ void InferencePipelineSchedule::ScheduleNaiveStage3( int instruction_group_index
     }
 }
 
-void InferencePipelineSchedule::ScheduleNaiveStageAct(int instruction_group_index)
+
+
+
+void InferencePipelineSchedule::ScheduleNaiveStageAct(int instruction_group_index, bool append_instruction)
 {
     for (int i = 0; i < core_num; ++i)
     {
-        struct core_schedule current_core = PIMCOM_6_physical_core_AG_map.core_list[i];
+        if (PIMCOM_4_core_instruction_group_num[i] < instruction_group_index)
+            continue;
+        struct core_schedule current_core = PIMCOM_4_virtual_core_AG_map.core_list[i];
         int AG_num = current_core.AG_list.size();
         for (int j = 0; j < AG_num; ++j)
         {
@@ -502,19 +590,21 @@ void InferencePipelineSchedule::ScheduleNaiveStageAct(int instruction_group_inde
                 Instruction_act.instruction_group_index = instruction_group_index;
                 Instruction_act.rd_offset = (node_offset_inference_old[AG_index_in_total])*AG_output_element_size[Instruction_act.source];
                 Instruction_act.rs_offset = (node_offset_inference_old[AG_index_in_total])*AG_output_element_size[Instruction_act.source];
-
-                PIMCOM_6_base_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_act);
+                if(append_instruction)
+                    PIMCOM_4_base_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_act);
             }
         }
     }
 }
 
-void InferencePipelineSchedule::ScheduleNaiveStage4(  int instruction_group_index)
+void InferencePipelineSchedule::ScheduleNaiveStage4(int instruction_group_index)
 {
     //// 结果传递与写回
     for (int i = 0; i < core_num; ++i)
     {
-        struct core_schedule current_core = PIMCOM_6_physical_core_AG_map.core_list[i];
+        if (PIMCOM_4_core_instruction_group_num[i] < instruction_group_index)
+            continue;
+        struct core_schedule current_core = PIMCOM_4_virtual_core_AG_map.core_list[i];
         int AG_num = current_core.AG_list.size();
         for (int j = 0; j < AG_num; ++j)
         {
@@ -527,7 +617,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage4(  int instruction_group_inde
             int level_index = current_core.AG_list[j].level_index;
             // replication_index不等于0 且 AG_index_in_replication=0 的AG0需要把结果传递给Rep0-AG0
             // 还要看AGx和AG0是否在同一个核，这样就避免了同核之间的SEND/RECV
-            if (AG_index_in_replication == 0 && replication_index != 0  && wb_flag[AG_index_in_total] > 0)
+            if (AG_index_in_replication == 0 && replication_index != 0  && wb_flag[AG_index_in_total] == 1)
             {
                 int estimated_rep0_ag0 = j - replication_index * AG_num_per_replication;
                 if (estimated_rep0_ag0 < 0 ||
@@ -535,7 +625,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage4(  int instruction_group_inde
                     current_core.AG_list[estimated_rep0_ag0].replication_index != 0 ||
                     current_core.node_list[estimated_rep0_ag0] != node_index )
                 {
-                    int RecvCore = PIMCOM_6_first_AG_info.node_list[node_index].replication_list[0];
+                    int RecvCore = PIMCOM_4_first_AG_info.node_list[node_index].replication_list[0];
                     struct INST Instruction_send;
                     Instruction_send.type = COMM;
                     Instruction_send.level_index = level_index;
@@ -549,7 +639,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage4(  int instruction_group_inde
                     Instruction_send.instruction_group_index = real_instruction_group_index;
                     Instruction_send.AGP = current_core.AG_list[j].AGP;
                     Instruction_send.agp_index = current_core.AG_list[j].agp_index;
-                    PIMCOM_6_post_instruction_ir[real_instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_send);
+                    PIMCOM_4_post_instruction_ir[real_instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_send);
 
                     struct INST Instruction_recv;
                     Instruction_recv.type = COMM;
@@ -562,7 +652,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage4(  int instruction_group_inde
                     Instruction_recv.instruction_group_index = real_instruction_group_index;
                     Instruction_recv.AGP = current_core.AG_list[j].AGP;
                     Instruction_recv.agp_index = current_core.AG_list[j].agp_index;
-                    PIMCOM_6_post_instruction_ir[real_instruction_group_index].core_list[RecvCore].instruction_ir_list.push_back(Instruction_recv);
+                    PIMCOM_4_post_instruction_ir[real_instruction_group_index].core_list[RecvCore].instruction_ir_list.push_back(Instruction_recv);
 
 //                     这里的WB指的是接受之后写回到正确的位置
 //                    struct INST Instruction_wb;
@@ -575,7 +665,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage4(  int instruction_group_inde
 //                    Instruction_wb.instruction_group_index = real_instruction_group_index;
 //                    Instruction_wb.AGP = current_core.AG_list[j].AGP;
 //                    Instruction_wb.agp_index = current_core.AG_list[j].agp_index;
-//                    PIMCOM_6_post_instruction_ir[real_instruction_group_index].core_list[RecvCore].instruction_ir_list.push_back(Instruction_wb);
+//                    PIMCOM_4_post_instruction_ir[real_instruction_group_index].core_list[RecvCore].instruction_ir_list.push_back(Instruction_wb);
                 }
                 else
                 {
@@ -590,7 +680,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage4(  int instruction_group_inde
 //                    Instruction_wb.instruction_group_index = real_instruction_group_index;
 //                    Instruction_wb.AGP = current_core.AG_list[j].AGP;
 //                    Instruction_wb.agp_index = current_core.AG_list[j].agp_index;
-//                    PIMCOM_6_post_instruction_ir[real_instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_wb);
+//                    PIMCOM_4_post_instruction_ir[real_instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_wb);
                 }
             }
             else if (AG_index_in_replication == 0 && replication_index == 0  && wb_flag[AG_index_in_total] > 0)
@@ -606,11 +696,84 @@ void InferencePipelineSchedule::ScheduleNaiveStage4(  int instruction_group_inde
 //                Instruction_wb.instruction_group_index = real_instruction_group_index;
 //                Instruction_wb.AGP = current_core.AG_list[j].AGP;
 //                Instruction_wb.agp_index = current_core.AG_list[j].agp_index;
-//                PIMCOM_6_post_instruction_ir[real_instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_wb);
+//                PIMCOM_4_post_instruction_ir[real_instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_wb);
             }
         }
     }
 }
+
+
+void InferencePipelineSchedule::ScheduleNaiveStage4WithoutWB(int instruction_group_index)
+{
+    //// 结果传递与写回
+    for (int i = 0; i < core_num; ++i)
+    {
+        if (PIMCOM_4_core_instruction_group_num[i] < instruction_group_index)
+            continue;
+        struct core_schedule current_core = PIMCOM_4_virtual_core_AG_map.core_list[i];
+        int AG_num = current_core.AG_list.size();
+        for (int j = 0; j < AG_num; ++j)
+        {
+            int node_index = current_core.node_list[j];
+            int replication_index = current_core.AG_list[j].replication_index;
+            int AG_index_in_replication = current_core.AG_list[j].AG_index_in_replication;
+            int AG_index_in_total = current_core.AG_list[j].AG_index_in_total;
+            int replication_num = current_core.AG_list[j].replication_num;
+            int AG_num_per_replication = current_core.AG_list[j].AG_num_per_replication;
+            int level_index = current_core.AG_list[j].level_index;
+            // replication_index不等于0 且 AG_index_in_replication=0 的AG0需要把结果传递给Rep0-AG0
+            // 还要看AGx和AG0是否在同一个核，这样就避免了同核之间的SEND/RECV
+            if (AG_index_in_replication == 0 && replication_index != 0  && wb_flag[AG_index_in_total] > 0)
+            {
+                bool SendRecvWB = true;
+                for (int k = 1; k <= replication_index * AG_num_per_replication; ++k)
+                {
+                    int estimated_rep0_ag0 = j - k;
+                    if (estimated_rep0_ag0 >= 0 &&
+                        current_core.AG_list[estimated_rep0_ag0].AG_index_in_replication == 0 &&
+                        current_core.AG_list[estimated_rep0_ag0].replication_index == 0 &&
+                        current_core.node_list[estimated_rep0_ag0] == node_index )
+                    {
+                        SendRecvWB = false;
+                        break;
+                    }
+                }
+                if (SendRecvWB)
+                {
+                    int RecvCore = PIMCOM_4_first_AG_info.node_list[node_index].replication_list[0];
+                    struct INST Instruction_send;
+                    Instruction_send.type = COMM;
+                    Instruction_send.level_index = level_index;
+                    Instruction_send.operation = "SEND";
+                    Instruction_send.to_core = RecvCore;
+                    Instruction_send.source = AG_index_in_total;
+                    Instruction_send.relative_length = node_offset_inference[AG_index_in_total];
+                    Instruction_send.element_num = Instruction_send.relative_length * AG_output_element_size[AG_index_in_total];
+//                    int real_instruction_group_index = (Instruction_send["relative_length"].asInt()-1)/operation_cycle_before_comm;
+                    int real_instruction_group_index = instruction_group_index;
+                    Instruction_send.instruction_group_index = real_instruction_group_index;
+                    Instruction_send.AGP = current_core.AG_list[j].AGP;
+                    Instruction_send.agp_index = current_core.AG_list[j].agp_index;
+                    PIMCOM_4_post_instruction_ir[real_instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_send);
+
+                    struct INST Instruction_recv;
+                    Instruction_recv.type = COMM;
+                    Instruction_recv.level_index = level_index;
+                    Instruction_recv.operation = "RECV";
+                    Instruction_recv.from_core = i;
+                    Instruction_recv.destination = AG_index_in_total;
+                    Instruction_recv.relative_length = node_offset_inference[AG_index_in_total];
+                    Instruction_recv.element_num = Instruction_recv.relative_length * AG_output_element_size[AG_index_in_total];
+                    Instruction_recv.instruction_group_index = real_instruction_group_index;
+                    Instruction_recv.AGP = current_core.AG_list[j].AGP;
+                    Instruction_recv.agp_index = current_core.AG_list[j].agp_index;
+                    PIMCOM_4_post_instruction_ir[real_instruction_group_index].core_list[RecvCore].instruction_ir_list.push_back(Instruction_recv);
+                }
+            }
+        }
+    }
+}
+
 
 static int visit_stage5[MAX_NODE] = {0};
 void InferencePipelineSchedule::ScheduleNaiveStage5( int node_index, int level_index, int instruction_group_index)
@@ -665,12 +828,12 @@ void InferencePipelineSchedule::ScheduleNaiveStage5( int node_index, int level_i
                         Instruction_elt.destination = AG0_index_in_total;
                         // 这个relative_length是未考虑复制块的情况，所以弃用
                         // Instruction["relative_length"] = node_offset_inference[AG0_index_in_total];
-                        Instruction_elt.relative_length =PIMCOM_6_input_cycle_record[effective_provider_index].size();
+                        Instruction_elt.relative_length =PIMCOM_4_input_cycle_record[effective_provider_index].size();
                         Instruction_elt.element_num = Instruction_elt.relative_length * AG_output_element_size[AG0_index_in_total];
                         Instruction_elt.copy_offset_flag = PIMCOM_node_list[consumer_index].copy_offset_flag;
 //                        int real_instruction_group_index = (node_offset_inference[AG0_index_in_total]-1)/operation_cycle_before_comm;
                         int real_instruction_group_index = instruction_group_index;
-                        PIMCOM_6_post_instruction_ir[real_instruction_group_index].core_list[AG0_core_index].instruction_ir_list.push_back(Instruction_elt);
+                        PIMCOM_4_post_instruction_ir[real_instruction_group_index].core_list[AG0_core_index].instruction_ir_list.push_back(Instruction_elt);
                     }
                 }
                 else if (strcmp(consumer_op.c_str(), "OP_CONCAT") == 0)
@@ -700,10 +863,10 @@ void InferencePipelineSchedule::ScheduleNaiveStage5( int node_index, int level_i
 //                        Instruction.node_index = consumer_index;
 //                        Instruction.source = PIMCOM_node_list[provider_index].AG0_index_in_total;
 //                        Instruction.destination = AG0_index_in_total;
-//                        Instruction.relative_length = PIMCOM_6_input_cycle_record[effective_provider_index].size();
+//                        Instruction.relative_length = PIMCOM_4_input_cycle_record[effective_provider_index].size();
 //                        Instruction.element_num = Instruction.relative_length * AG_output_element_size[provider_AG0_index];
 //                        Instruction.copy_offset_flag = PIMCOM_node_list[consumer_index].copy_offset_flag;
-//                        PIMCOM_6_post_instruction_ir[instruction_group_index].core_list[AG0_core_index].instruction_ir_list.push_back(Instruction);
+//                        PIMCOM_4_post_instruction_ir[instruction_group_index].core_list[AG0_core_index].instruction_ir_list.push_back(Instruction);
                         //// 下面这个代码是将CONCAT代码展开来，即具体形式。
                         {
                             // 这个output_channel_num是完整的
@@ -711,7 +874,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage5( int node_index, int level_i
                             // 这个output_channel_num不完全
                             // int output_channel_num = node_offset_inference[provider_AG0_index];
                             // 这个output_channel_num是可行的
-                            int output_channel_num = PIMCOM_6_input_cycle_record[effective_provider_index].size();
+                            int output_channel_num = PIMCOM_4_input_cycle_record[effective_provider_index].size();
                             int output_channel_element_size = PIMCOM_node_list[provider_index].output_dim[1];
                             if (j != 0)
                             {
@@ -720,7 +883,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage5( int node_index, int level_i
                             }
                             for (int k = 0; k < output_channel_num; ++k)
                             {
-                                int input_cycle = PIMCOM_6_input_cycle_record[effective_provider_index][k];
+                                int input_cycle = PIMCOM_4_input_cycle_record[effective_provider_index][k];
                                 int rs_offset = input_cycle * output_channel_element_size;
                                 int rd_offset = input_cycle * output_channel_element_size_concat + accumulated_offset;
                                 struct INST Instruction_detail;
@@ -737,7 +900,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage5( int node_index, int level_i
                                 Instruction_detail.relative_length = 1;
                                 Instruction_detail.element_num = Instruction_detail.relative_length * AG_output_element_size[provider_AG0_index];
                                 Instruction_detail.copy_offset_flag = consumer_copy_offset_flag;
-                                PIMCOM_6_post_instruction_ir[instruction_group_index].core_list[AG0_core_index].instruction_ir_list.push_back(Instruction_detail);
+                                PIMCOM_4_post_instruction_ir[instruction_group_index].core_list[AG0_core_index].instruction_ir_list.push_back(Instruction_detail);
                             }
                         }
                     }
@@ -760,28 +923,28 @@ void InferencePipelineSchedule::ScheduleNaiveStage5( int node_index, int level_i
                         // TODO 这里的offset不确定
                         Instruction_act.rs_offset = 0;
                         Instruction_act.rd_offset = 0;
-                        Instruction_act.relative_length = PIMCOM_6_input_cycle_record[effective_provider_index].size();
+                        Instruction_act.relative_length = PIMCOM_4_input_cycle_record[effective_provider_index].size();
                         Instruction_act.element_num = Instruction_act.relative_length * AG_output_element_size[AG0_index_in_total];
                         Instruction_act.copy_offset_flag = PIMCOM_node_list[consumer_index].copy_offset_flag;
                         int real_instruction_group_index = instruction_group_index;
-                        PIMCOM_6_post_instruction_ir[real_instruction_group_index].core_list[AG0_core_index].instruction_ir_list.push_back(Instruction_act);
+                        PIMCOM_4_post_instruction_ir[real_instruction_group_index].core_list[AG0_core_index].instruction_ir_list.push_back(Instruction_act);
                     }
                 }
                 else if (strcmp(consumer_op.c_str(), "OP_POOL") == 0)
                 {
-                    bool output_visit_flag[100000];
+                    bool output_visit_flag[100000] = {0};
                     int effective_provider_index = PIMCOM_node_list[node_index].AG0_node_index;
                     // TODO 可能有bug
-//                    int ready_input_num = PIMCOM_6_input_cycle_record[effective_provider_index].size();  // the input of pool
+//                    int ready_input_num = PIMCOM_4_input_cycle_record[effective_provider_index].size();  // the input of pool
                     int ready_input_num = PIMCOM_node_list[consumer_index].input_dim[2] * PIMCOM_node_list[consumer_index].input_dim[3];
                     int input_element_in_total = PIMCOM_node_list[consumer_index].input_dim[1] * PIMCOM_node_list[consumer_index].input_dim[2] * PIMCOM_node_list[consumer_index].input_dim[3];
                     for (int j = 0; j < ready_input_num; ++j)
                     {
-                        int input_index = PIMCOM_6_input_cycle_record[effective_provider_index][j];
-                        int associated_output_num = PIMCOM_5_pool_info[consumer_index].input_index[input_index].size();
+                        int input_index = PIMCOM_4_input_cycle_record[effective_provider_index][j];
+                        int associated_output_num = PIMCOM_conv_pool_input_output_info[consumer_index].input_index[input_index].size();
                         for (int k = 0; k < associated_output_num; ++k)
                         {
-                            int output_index = PIMCOM_5_pool_info[consumer_index].input_index[input_index][k];
+                            int output_index = PIMCOM_conv_pool_input_output_info[consumer_index].input_index[input_index][k];
                             struct INST Instruction;
                             Instruction.level_index = PIMCOM_node_list[consumer_index].level_index;
                             Instruction.stage = "POOL";
@@ -818,7 +981,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage5( int node_index, int level_i
                                 Instruction.rd_offset = Instruction.rs2_offset;
                             }
                             int real_instruction_group_index = instruction_group_index;
-                            PIMCOM_6_post_instruction_ir[real_instruction_group_index].core_list[AG0_core_index].instruction_ir_list.push_back(Instruction);
+                            PIMCOM_4_post_instruction_ir[real_instruction_group_index].core_list[AG0_core_index].instruction_ir_list.push_back(Instruction);
                         }
                     }
                 }
@@ -833,18 +996,17 @@ void InferencePipelineSchedule::ScheduleNaiveStage5( int node_index, int level_i
 //                    Instruction.node_index = consumer_index;
 //                    Instruction.source = AG0_index_in_total;
 //                    Instruction.destination = AG0_index_in_total;
-//                    Instruction.relative_length = PIMCOM_6_input_cycle_record[effective_provider_index].size();
+//                    Instruction.relative_length = PIMCOM_4_input_cycle_record[effective_provider_index].size();
 //                    Instruction.element_num = Instruction.relative_length * AG_output_element_size[AG0_index_in_total];
 //                    Instruction.copy_offset_flag = PIMCOM_node_list[consumer_index].copy_offset_flag;
 //                    int real_instruction_group_index = instruction_group_index;
-//                    PIMCOM_6_post_instruction_ir[real_instruction_group_index].core_list[AG0_core_index].instruction_ir_list.push_back(Instruction);
+//                    PIMCOM_4_post_instruction_ir[real_instruction_group_index].core_list[AG0_core_index].instruction_ir_list.push_back(Instruction);
                 }
                 ScheduleNaiveStage5(consumer_index, level_index, instruction_group_index);
             }
         }
     }
 }
-
 
 int InferencePipelineSchedule::GetInputChannelFromOutputIndex(int node_index, int output_index, bool is_last)
 {
@@ -870,30 +1032,35 @@ int InferencePipelineSchedule::GetInputChannelFromOutputIndex(int node_index, in
         std::cout << " Output Size Doesn't Match" << std::endl;
         return -1;
     }
+    int normal_start_index_in_w = conv_padding_w0/conv_stride_w + (conv_padding_w0 % conv_stride_w == 0 ? 0 : 1);
+    int normal_start_index_in_h = conv_padding_h0/conv_stride_h + (conv_padding_h0 % conv_stride_h == 0 ? 0 : 1);
 
     int i = output_index / output_W;
     int j = output_index % output_W;
     int start_address = i * conv_stride_h * input_W + j *  conv_stride_w;
-    if (i != 0)
-        start_address -= conv_padding_h0 * input_W;
-    if (j != 0)
+    if (j < normal_start_index_in_w)
+        start_address -= (j * conv_stride_w);
+    else
         start_address -= conv_padding_w0;
+    if (i < normal_start_index_in_h)
+        start_address -= (i * conv_stride_h * input_W);
+    else
+        start_address -= conv_padding_h0 * input_W;
+    
     int start_row = start_address / input_W;
     int start_col = start_address % input_W;
 
-    int conv_h_num = conv_kernel_h;
-    if (i == 0)
-        conv_h_num -= conv_padding_h0;
-    else if (i == output_H-1)
-        if (start_row + conv_kernel_h > input_H)
-            conv_h_num -= conv_padding_h1;
-
     int conv_w_num = conv_kernel_w;
-    if (j == 0)
-        conv_w_num -= conv_padding_w0;
-    else if (j == output_W-1)
-        if (start_col + conv_kernel_w > input_W)
-            conv_w_num -= conv_padding_w1;
+    if (j < normal_start_index_in_w)
+        conv_w_num = conv_w_num - conv_padding_w0 + j * conv_stride_w;
+    if (start_col + conv_kernel_w > input_W)
+        conv_w_num = conv_w_num - (start_col + conv_kernel_w - input_W);
+
+    int conv_h_num = conv_kernel_h;
+    if (i < normal_start_index_in_h)
+        conv_h_num = conv_h_num - conv_padding_h0 + i * conv_stride_h;
+    if (start_row + conv_kernel_h > input_H)
+        conv_h_num = conv_h_num - (start_row + conv_kernel_h - input_H);
 
     int h = 0;
     int w = 0;
@@ -929,6 +1096,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage6( int node_index, int level_i
         Instruction_st.level_index = level_index;
         Instruction_st.level_diff = 0;
         Instruction_st.operation = "ST";
+        Instruction_st.node_index = node_index;
         Instruction_st.stage = "OUTPUT";
         Instruction_st.source = provider_AG_index;
         Instruction_st.destination = provider_AG_index;
@@ -937,7 +1105,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage6( int node_index, int level_i
         Instruction_st.rd_offset = -1;
         Instruction_st.element_num = output_element_num;
         Instruction_st.instruction_group_index = instruction_group_index;
-        PIMCOM_6_post_instruction_ir[instruction_group_index].core_list[provider_core].instruction_ir_list.push_back(Instruction_st);
+        PIMCOM_4_post_instruction_ir[instruction_group_index].core_list[provider_core].instruction_ir_list.push_back(Instruction_st);
         return;
     }
     else
@@ -969,12 +1137,12 @@ void InferencePipelineSchedule::ScheduleNaiveStage6( int node_index, int level_i
                             Instruction_send.to_core = consumer_core;
                             Instruction_send.source = provider_AG_index;
                             Instruction_send.rs_offset = 0;
-                            Instruction_send.relative_length = PIMCOM_6_input_cycle_record[effective_node_index].size();
+                            Instruction_send.relative_length = PIMCOM_4_input_cycle_record[effective_node_index].size();
                             Instruction_send.element_num = Instruction_send.relative_length * AG_output_element_size[provider_AG_index];
 //                          int real_instruction_group_index = (node_offset_inference[AG0_index_in_total]-1)/operation_cycle_before_comm;
                             int real_instruction_group_index = instruction_group_index;
                             Instruction_send.instruction_group_index = real_instruction_group_index;
-                            PIMCOM_6_post_instruction_ir[real_instruction_group_index].core_list[provider_core].instruction_ir_list.push_back(Instruction_send);
+                            PIMCOM_4_post_instruction_ir[real_instruction_group_index].core_list[provider_core].instruction_ir_list.push_back(Instruction_send);
 
                             struct INST Instruction_recv;
                             Instruction_recv.type = COMM;
@@ -986,7 +1154,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage6( int node_index, int level_i
                             Instruction_recv.relative_length = Instruction_send.relative_length;
                             Instruction_recv.element_num = Instruction_recv.relative_length * AG_output_element_size[provider_AG_index];
                             Instruction_recv.instruction_group_index = real_instruction_group_index;
-                            PIMCOM_6_post_instruction_ir[real_instruction_group_index].core_list[consumer_core].instruction_ir_list.push_back(Instruction_recv);
+                            PIMCOM_4_post_instruction_ir[real_instruction_group_index].core_list[consumer_core].instruction_ir_list.push_back(Instruction_recv);
                         }
                         else if (PIMCOM_node_list[consumer_index].copy_offset_flag == 1)
                         {
@@ -1001,12 +1169,12 @@ void InferencePipelineSchedule::ScheduleNaiveStage6( int node_index, int level_i
                     {
                         if (PIMCOM_node_list[consumer_index].operation == "OP_CONV")
                         {
-                            int comm_num = PIMCOM_6_recv_info.node_list[consumer_index].size();
+                            int comm_num = PIMCOM_4_recv_info.node_list[consumer_index].size();
                             for (int j = 0; j < comm_num; ++j)
                             {
-                                int recv_core = PIMCOM_6_recv_info.node_list[consumer_index][j].core_index;
-                                int recv_replication = PIMCOM_6_recv_info.node_list[consumer_index][j].replication_index;
-                                int recv_AG_index = PIMCOM_6_recv_info.node_list[consumer_index][j].AG_index;
+                                int recv_core = PIMCOM_4_recv_info.node_list[consumer_index][j].core_index;
+                                int recv_replication = PIMCOM_4_recv_info.node_list[consumer_index][j].replication_index;
+                                int recv_AG_index = PIMCOM_4_recv_info.node_list[consumer_index][j].AG_index;
                                 if (PIMCOM_node_list[node_index].operation == "OP_INPUT") // Load Data From Global Memory
                                 {
                                     int effective_consumer_index = PIMCOM_node_list[consumer_index].effective_node_index;
@@ -1035,7 +1203,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage6( int node_index, int level_i
                                     Instruction_ld.rd_offset = 0;
                                     Instruction_ld.element_num = channel_num * channel_length;
                                     Instruction_ld.instruction_group_index = instruction_group_index;
-                                    PIMCOM_6_post_instruction_ir[instruction_group_index].core_list[recv_core].instruction_ir_list.push_back(Instruction_ld);
+                                    PIMCOM_4_post_instruction_ir[instruction_group_index].core_list[recv_core].instruction_ir_list.push_back(Instruction_ld);
                                 }
                                 else if (recv_core != provider_core)
                                 {
@@ -1055,36 +1223,38 @@ void InferencePipelineSchedule::ScheduleNaiveStage6( int node_index, int level_i
                                     Instruction_send.operation = "SEND";
                                     Instruction_send.to_core = recv_core;
                                     Instruction_send.source = provider_AG_index;
+                                    Instruction_send.relative_length = 0;
                                     Instruction_send.rs_offset = channel_length * GetInputChannelFromOutputIndex(consumer_index, first_output_index, 0);
                                     Instruction_send.element_num = channel_num * channel_length;
                                     Instruction_send.instruction_group_index = instruction_group_index;
-                                    PIMCOM_6_post_instruction_ir[instruction_group_index].core_list[provider_core].instruction_ir_list.push_back(Instruction_send);
+                                    PIMCOM_4_post_instruction_ir[instruction_group_index].core_list[provider_core].instruction_ir_list.push_back(Instruction_send);
 
                                     struct INST  Instruction_recv;
                                     Instruction_recv.type = COMM;
                                     Instruction_recv.level_index = level_index;
                                     Instruction_recv.operation = "RECV";
                                     Instruction_recv.from_core = provider_core;
+                                    Instruction_recv.relative_length = 0;
                                     Instruction_recv.destination = recv_AG_index;
                                     Instruction_recv.element_num = channel_num * channel_length;
                                     Instruction_recv.instruction_group_index = instruction_group_index;
-                                    PIMCOM_6_post_instruction_ir[instruction_group_index].core_list[recv_core].instruction_ir_list.push_back(Instruction_recv);
+                                    PIMCOM_4_post_instruction_ir[instruction_group_index].core_list[recv_core].instruction_ir_list.push_back(Instruction_recv);
                                 }
                             }
                         }
                         else if (PIMCOM_node_list[consumer_index].operation == "OP_FC")
                         {
-                            int comm_num = PIMCOM_6_recv_info.node_list[consumer_index].size();
+                            int comm_num = PIMCOM_4_recv_info.node_list[consumer_index].size();
                             for (int j = 0; j < comm_num; ++j)
                             {
                                 if (PIMCOM_node_list[PIMCOM_node_list[consumer_index].provider_index[0]].operation == "OP_INPUT")
                                     continue;
-                                int recv_core = PIMCOM_6_recv_info.node_list[consumer_index][j].core_index;
-                                int recv_AG_index = PIMCOM_6_recv_info.node_list[consumer_index][j].AG_index;
+                                int recv_core = PIMCOM_4_recv_info.node_list[consumer_index][j].core_index;
+                                int recv_AG_index = PIMCOM_4_recv_info.node_list[consumer_index][j].AG_index;
                                 if (PIMCOM_node_list[node_index].operation == "OP_INPUT") // Load Data From Global Memory
                                 {
-                                    int start_offset = PIMCOM_6_recv_info.node_list[consumer_index][j].start_offset_element;
-                                    int recv_element = PIMCOM_6_recv_info.node_list[consumer_index][j].recv_element;
+                                    int start_offset = PIMCOM_4_recv_info.node_list[consumer_index][j].start_offset_element;
+                                    int recv_element = PIMCOM_4_recv_info.node_list[consumer_index][j].recv_element;
                                     int input_dim_num = PIMCOM_node_list[node_index].output_dim_num;
                                     int input_element_num = 1;
                                     for (int k = 0; k < input_dim_num; ++k)
@@ -1094,9 +1264,10 @@ void InferencePipelineSchedule::ScheduleNaiveStage6( int node_index, int level_i
 
                                     struct INST  Instruction_ld;
                                     Instruction_ld.type = MEM;
-                                    Instruction_ld.level_index = 0;
+                                    Instruction_ld.level_index = node_index;
                                     Instruction_ld.level_diff = 0;
                                     Instruction_ld.operation = "LD";
+                                    Instruction_ld.node_index = 0;
                                     Instruction_ld.stage = "INPUT";
                                     Instruction_ld.source = 0;
                                     Instruction_ld.destination = recv_AG_index;
@@ -1106,14 +1277,14 @@ void InferencePipelineSchedule::ScheduleNaiveStage6( int node_index, int level_i
                                     Instruction_ld.rd_offset = 0;
                                     Instruction_ld.element_num = recv_element;
                                     Instruction_ld.instruction_group_index = instruction_group_index;
-                                    PIMCOM_6_post_instruction_ir[instruction_group_index].core_list[recv_core].instruction_ir_list.push_back(Instruction_ld);
+                                    PIMCOM_4_post_instruction_ir[instruction_group_index].core_list[recv_core].instruction_ir_list.push_back(Instruction_ld);
                                 }
                                 else if (recv_core != provider_core)
                                 {
 //                                    std::cout << "[Comm] from core_" << provider_core << " node_" << node_index << " AG_" << provider_AG_index << " TO "
 //                                              << "core_" << recv_core << " node_" << consumer_index << " AG_" << recv_AG_index  << std::endl;
-                                    int start_offset = PIMCOM_6_recv_info.node_list[consumer_index][j].start_offset_element;
-                                    int recv_element = PIMCOM_6_recv_info.node_list[consumer_index][j].recv_element;
+                                    int start_offset = PIMCOM_4_recv_info.node_list[consumer_index][j].start_offset_element;
+                                    int recv_element = PIMCOM_4_recv_info.node_list[consumer_index][j].recv_element;
 //                                    std::cout << " start_offset:" << start_offset << " recv_element:" << recv_element << std::endl;
 
                                     struct INST  Instruction_send;
@@ -1121,23 +1292,25 @@ void InferencePipelineSchedule::ScheduleNaiveStage6( int node_index, int level_i
                                     Instruction_send.level_index = level_index;
                                     Instruction_send.operation = "SEND";
                                     Instruction_send.stage = 7;
+                                    Instruction_send.relative_length = 0;
                                     Instruction_send.to_core = recv_core;
                                     Instruction_send.source = provider_AG_index;
                                     Instruction_send.rs_offset = start_offset;
                                     Instruction_send.element_num = recv_element;
                                     Instruction_send.instruction_group_index = instruction_group_index;
-                                    PIMCOM_6_post_instruction_ir[instruction_group_index].core_list[provider_core].instruction_ir_list.push_back(Instruction_send);
+                                    PIMCOM_4_post_instruction_ir[instruction_group_index].core_list[provider_core].instruction_ir_list.push_back(Instruction_send);
 
                                     struct INST  Instruction_recv;
                                     Instruction_recv.type = COMM;
                                     Instruction_recv.level_index = level_index;
                                     Instruction_recv.operation = "RECV";
                                     Instruction_recv.stage = 7;
+                                    Instruction_recv.relative_length = 0;
                                     Instruction_recv.from_core = provider_core;
                                     Instruction_recv.destination = recv_AG_index;
                                     Instruction_recv.element_num = recv_element;
                                     Instruction_recv.instruction_group_index = instruction_group_index;
-                                    PIMCOM_6_post_instruction_ir[instruction_group_index].core_list[recv_core].instruction_ir_list.push_back(Instruction_recv);
+                                    PIMCOM_4_post_instruction_ir[instruction_group_index].core_list[recv_core].instruction_ir_list.push_back(Instruction_recv);
                                 }
                             }
                         }
@@ -1165,7 +1338,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage6( int node_index, int level_i
                                 Instruction_send.rs_offset = 0;
                                 Instruction_send.element_num = output_dim;
                                 Instruction_send.instruction_group_index = instruction_group_index;
-                                PIMCOM_6_post_instruction_ir[instruction_group_index].core_list[provider_core].instruction_ir_list.push_back(Instruction_send);
+                                PIMCOM_4_post_instruction_ir[instruction_group_index].core_list[provider_core].instruction_ir_list.push_back(Instruction_send);
 
                                 struct INST  Instruction_recv;
                                 Instruction_recv.type = COMM;
@@ -1177,7 +1350,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage6( int node_index, int level_i
                                 Instruction_recv.destination = provider_AG_index; // the same to send_source
                                 Instruction_recv.element_num = output_dim;
                                 Instruction_recv.instruction_group_index = instruction_group_index;
-                                PIMCOM_6_post_instruction_ir[instruction_group_index].core_list[consumer_core].instruction_ir_list.push_back(Instruction_recv);
+                                PIMCOM_4_post_instruction_ir[instruction_group_index].core_list[consumer_core].instruction_ir_list.push_back(Instruction_recv);
                             }
                         }
                     }
@@ -1185,12 +1358,12 @@ void InferencePipelineSchedule::ScheduleNaiveStage6( int node_index, int level_i
                     {
                         if (PIMCOM_node_list[consumer_index].operation == "OP_CONV")
                         {
-                            int comm_num = PIMCOM_6_recv_info.node_list[consumer_index].size();
+                            int comm_num = PIMCOM_4_recv_info.node_list[consumer_index].size();
                             for (int j = 0; j < comm_num; ++j)
                             {
-                                int recv_core = PIMCOM_6_recv_info.node_list[consumer_index][j].core_index;
-                                int recv_replication = PIMCOM_6_recv_info.node_list[consumer_index][j].replication_index;
-                                int recv_AG_index = PIMCOM_6_recv_info.node_list[consumer_index][j].AG_index;
+                                int recv_core = PIMCOM_4_recv_info.node_list[consumer_index][j].core_index;
+                                int recv_replication = PIMCOM_4_recv_info.node_list[consumer_index][j].replication_index;
+                                int recv_AG_index = PIMCOM_4_recv_info.node_list[consumer_index][j].AG_index;
                                 if (recv_core != provider_core)
                                 {
                                     if (PIMCOM_node_list[PIMCOM_node_list[consumer_index].provider_index[0]].operation == "OP_INPUT")
@@ -1210,6 +1383,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage6( int node_index, int level_i
                                     Instruction_st.level_index = level_index;
                                     Instruction_st.level_diff = consumer_level - level_index;
                                     Instruction_st.operation = "ST";
+                                    Instruction_st.node_index = node_index;
                                     Instruction_st.source = provider_AG_index;
                                     Instruction_st.destination = recv_AG_index;
                                     Instruction_st.rs_offset = channel_length * GetInputChannelFromOutputIndex(consumer_index, first_output_index, 0);
@@ -1217,13 +1391,14 @@ void InferencePipelineSchedule::ScheduleNaiveStage6( int node_index, int level_i
                                     Instruction_st.rd_offset = -1;
                                     Instruction_st.element_num = channel_num * channel_length;
                                     Instruction_st.instruction_group_index = instruction_group_index;
-                                    PIMCOM_6_post_instruction_ir[instruction_group_index].core_list[provider_core].instruction_ir_list.push_back(Instruction_st);
+                                    PIMCOM_4_post_instruction_ir[instruction_group_index].core_list[provider_core].instruction_ir_list.push_back(Instruction_st);
 
                                     struct INST  Instruction_ld;
                                     Instruction_ld.type = MEM;
                                     Instruction_ld.level_index = consumer_level-1;
                                     Instruction_ld.level_diff = consumer_level - level_index;
                                     Instruction_ld.operation = "LD";
+                                    Instruction_ld.node_index = consumer_index;
                                     Instruction_ld.source = recv_AG_index;
                                     Instruction_ld.destination = recv_AG_index;
                                     Instruction_ld.rs_offset_unit = (channel_num * channel_length);
@@ -1231,25 +1406,25 @@ void InferencePipelineSchedule::ScheduleNaiveStage6( int node_index, int level_i
                                     Instruction_ld.rd_offset = 0;
                                     Instruction_ld.element_num = channel_num * channel_length;
                                     Instruction_ld.instruction_group_index = instruction_group_index;
-                                    PIMCOM_6_post_instruction_ir[instruction_group_index].core_list[recv_core].instruction_ir_list.push_back(Instruction_ld);
+                                    PIMCOM_4_post_instruction_ir[instruction_group_index].core_list[recv_core].instruction_ir_list.push_back(Instruction_ld);
                                 }
                             }
                         }
                         else if (PIMCOM_node_list[consumer_index].operation == "OP_FC")
                         {
-                            int comm_num = PIMCOM_6_recv_info.node_list[consumer_index].size();
+                            int comm_num = PIMCOM_4_recv_info.node_list[consumer_index].size();
                             for (int j = 0; j < comm_num; ++j)
                             {
                                 if (PIMCOM_node_list[PIMCOM_node_list[consumer_index].provider_index[0]].operation == "OP_INPUT")
                                     continue;
-                                int recv_core = PIMCOM_6_recv_info.node_list[consumer_index][j].core_index;
-                                int recv_AG_index = PIMCOM_6_recv_info.node_list[consumer_index][j].AG_index;
+                                int recv_core = PIMCOM_4_recv_info.node_list[consumer_index][j].core_index;
+                                int recv_AG_index = PIMCOM_4_recv_info.node_list[consumer_index][j].AG_index;
                                 if (recv_core != provider_core)
                                 {
 //                                    std::cout << "[Cache] from core_" << provider_core << " node_" << node_index << " AG_" << provider_AG_index << " TO "
 //                                              << "core_" << recv_core << " node_" << consumer_index << " AG_" << recv_AG_index  << std::endl;
-                                    int start_offset = PIMCOM_6_recv_info.node_list[consumer_index][j].start_offset_element;
-                                    int recv_element = PIMCOM_6_recv_info.node_list[consumer_index][j].recv_element;
+                                    int start_offset = PIMCOM_4_recv_info.node_list[consumer_index][j].start_offset_element;
+                                    int recv_element = PIMCOM_4_recv_info.node_list[consumer_index][j].recv_element;
 //                                    std::cout << " start_offset:" << start_offset << " recv_element:" << recv_element << std::endl;
 
                                     struct INST  Instruction_st;
@@ -1264,7 +1439,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage6( int node_index, int level_i
                                     Instruction_st.rd_offset = -1;
                                     Instruction_st.element_num = recv_element;
                                     Instruction_st.instruction_group_index = instruction_group_index;
-                                    PIMCOM_6_post_instruction_ir[instruction_group_index].core_list[provider_core].instruction_ir_list.push_back(Instruction_st);
+                                    PIMCOM_4_post_instruction_ir[instruction_group_index].core_list[provider_core].instruction_ir_list.push_back(Instruction_st);
 
                                     struct INST  Instruction_ld;
                                     Instruction_ld.type = MEM;
@@ -1278,7 +1453,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage6( int node_index, int level_i
                                     Instruction_ld.rd_offset = 0;
                                     Instruction_ld.element_num = recv_element;
                                     Instruction_ld.instruction_group_index = instruction_group_index;
-                                    PIMCOM_6_post_instruction_ir[instruction_group_index].core_list[recv_core].instruction_ir_list.push_back(Instruction_ld);
+                                    PIMCOM_4_post_instruction_ir[instruction_group_index].core_list[recv_core].instruction_ir_list.push_back(Instruction_ld);
                                 }
                             }
                         }
@@ -1308,7 +1483,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage6( int node_index, int level_i
                                 Instruction_st.rd_offset_unit = output_dim;
                                 Instruction_st.element_num = output_dim;
                                 Instruction_st.instruction_group_index = instruction_group_index;
-                                PIMCOM_6_post_instruction_ir[instruction_group_index].core_list[provider_core].instruction_ir_list.push_back(Instruction_st);
+                                PIMCOM_4_post_instruction_ir[instruction_group_index].core_list[provider_core].instruction_ir_list.push_back(Instruction_st);
 
                                 struct INST  Instruction_ld;
                                 Instruction_ld.type = MEM;
@@ -1322,7 +1497,7 @@ void InferencePipelineSchedule::ScheduleNaiveStage6( int node_index, int level_i
                                 Instruction_ld.rd_offset = 0;
                                 Instruction_ld.element_num = output_dim;
                                 Instruction_ld.instruction_group_index = instruction_group_index;
-                                PIMCOM_6_post_instruction_ir[instruction_group_index].core_list[consumer_core].instruction_ir_list.push_back(Instruction_ld);
+                                PIMCOM_4_post_instruction_ir[instruction_group_index].core_list[consumer_core].instruction_ir_list.push_back(Instruction_ld);
                             }
                         }
                     }
@@ -1333,7 +1508,6 @@ void InferencePipelineSchedule::ScheduleNaiveStage6( int node_index, int level_i
     }
 }
 
-
 void InferencePipelineSchedule::AddSeparateLine( int instruction_group_index)
 {
     for (int i = 0; i < core_num; ++i)
@@ -1341,7 +1515,7 @@ void InferencePipelineSchedule::AddSeparateLine( int instruction_group_index)
         struct INST Instruction_sep;
         Instruction_sep.operation = "sep";
         Instruction_sep.level_index = 0;
-        PIMCOM_6_base_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_sep);
+        PIMCOM_4_base_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_sep);
     }
 }
 
@@ -1359,8 +1533,8 @@ void InferencePipelineSchedule::FillTheWholeInstructionGroup()
     }
 
     // Clean And Fill DNNInfo["6_input_cycle_record"]
-    PIMCOM_6_input_cycle_record.clear();
-    PIMCOM_6_input_cycle_record.resize(node_num);
+    PIMCOM_4_input_cycle_record.clear();
+    PIMCOM_4_input_cycle_record.resize(node_num);
     int effective_node_index = PIMCOM_2_AG_partition.size();
     for (int i = 0; i < effective_node_index; ++i)
     {
@@ -1368,7 +1542,7 @@ void InferencePipelineSchedule::FillTheWholeInstructionGroup()
         int input_cycle_in_total = PIMCOM_2_AG_partition[i].input_cycle_in_total;
         for (int j = 0; j < input_cycle_in_total; ++j)
         {
-            PIMCOM_6_input_cycle_record[node_index].push_back(j);
+            PIMCOM_4_input_cycle_record[node_index].push_back(j);
         }
     }
 }
@@ -1382,14 +1556,21 @@ int InferencePipelineSchedule::GetEffectiveInstructionGroupNum()
         // 得到整个结构最终instruction_group_num
         int AG_index = PIMCOM_3_hierarchy_map.whole_index[i];
         int AG_instruction_group_num = PIMCOM_3_hierarchy_map.whole[i][0].instruction_group_num;
+        int core_index = PIMCOM_3_hierarchy_map.whole[i][0].vcore_index;
         if (AG_instruction_group_num > effective_instruction_group_num)
             effective_instruction_group_num = AG_instruction_group_num;
+        // 得到全部出现过的instruction_group_num
+        PIMCOM_4_unique_instruction_group_index.insert(AG_instruction_group_num);
         // 为每个CONV或FC节点生成instruction_group_num
         int node_index = PIMCOM_3_hierarchy_map.whole[i][0].node_index;
         if (PIMCOM_node_list[node_index].instruction_group_num == 0)
             PIMCOM_node_list[node_index].instruction_group_num = AG_instruction_group_num;
         else if (PIMCOM_node_list[node_index].instruction_group_num < AG_instruction_group_num)
             PIMCOM_node_list[node_index].instruction_group_num = AG_instruction_group_num;
+        if (PIMCOM_4_core_instruction_group_num.count(core_index) == 0)
+            PIMCOM_4_core_instruction_group_num[core_index] = AG_instruction_group_num;
+        else if (PIMCOM_4_core_instruction_group_num[core_index] < AG_instruction_group_num)
+            PIMCOM_4_core_instruction_group_num[core_index] = AG_instruction_group_num;
     }
     return effective_instruction_group_num;
 }
@@ -1450,15 +1631,15 @@ void InferencePipelineSchedule::ScheduleNaiveScheduleOnePostOperation(int instru
             Instruction_ld.element_num = (input_channel_end - input_channel_start + 1) * output_channel_length;
             load_offset += Instruction_ld.element_num;
             Instruction_ld.instruction_group_index = instruction_group_index;
-            PIMCOM_6_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_ld);
+            PIMCOM_4_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_ld);
 
             for (int j = output_channel_start; j <= output_channel_end; ++j)
             {
-                int associated_input_num = PIMCOM_5_pool_info[post_node_index].output_index[j].size();
+                int associated_input_num = PIMCOM_conv_pool_input_output_info[post_node_index].output_index[j].size();
                 for (int k = 0; k < associated_input_num; ++k)
                 {
                     int output_channel_index = j;
-                    int input_channel_index = PIMCOM_5_pool_info[post_node_index].output_index[j][k];
+                    int input_channel_index = PIMCOM_conv_pool_input_output_info[post_node_index].output_index[j][k];
                     struct INST Instruction_pool;
                     Instruction_pool.node_index = PostOperationNode.index;
                     Instruction_pool.level_index = level_index;
@@ -1486,7 +1667,7 @@ void InferencePipelineSchedule::ScheduleNaiveScheduleOnePostOperation(int instru
                         Instruction_pool.rs2_offset = (output_channel_index - output_channel_start) * output_channel_length;
                         Instruction_pool.rd_offset = Instruction_pool.rs2_offset;
                     }
-                    PIMCOM_6_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_pool);
+                    PIMCOM_4_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_pool);
                 }
             }
 
@@ -1503,7 +1684,7 @@ void InferencePipelineSchedule::ScheduleNaiveScheduleOnePostOperation(int instru
             Instruction_st.rd_offset = output_channel_start * output_channel_length; // POOL:input_channel_length == output_channel_length
             Instruction_st.element_num = (output_channel_end - output_channel_start + 1) * output_channel_length;
             Instruction_st.instruction_group_index = instruction_group_index;
-            PIMCOM_6_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_st);
+            PIMCOM_4_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_st);
         }
     }
     else if (PostOperationNode.operation ==  "OP_RELU")
@@ -1532,7 +1713,7 @@ void InferencePipelineSchedule::ScheduleNaiveScheduleOnePostOperation(int instru
             load_address.push_back(load_offset);
             load_offset += Instruction_ld.element_num;
             Instruction_ld.instruction_group_index = instruction_group_index;
-            PIMCOM_6_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_ld);
+            PIMCOM_4_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_ld);
             
             for (int k = input_channel_start; k <= input_channel_end; ++k)
             {
@@ -1548,7 +1729,7 @@ void InferencePipelineSchedule::ScheduleNaiveScheduleOnePostOperation(int instru
                 Instruction_elt.rd_offset = load_offset + (k-input_channel_start) * output_channel_length;
                 Instruction_elt.element_num = output_channel_length;
                 Instruction_elt.instruction_group_index = instruction_group_index;
-                PIMCOM_6_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_elt);
+                PIMCOM_4_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_elt);
             }
 
             struct INST Instruction_st;
@@ -1564,7 +1745,7 @@ void InferencePipelineSchedule::ScheduleNaiveScheduleOnePostOperation(int instru
             Instruction_st.rd_offset = input_channel_start * output_channel_length;
             Instruction_st.element_num = (input_channel_end - input_channel_start + 1) * output_channel_length;
             Instruction_st.instruction_group_index = instruction_group_index;
-            PIMCOM_6_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_st);
+            PIMCOM_4_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_st);
         }
     }
     else if (PostOperationNode.operation ==  "OP_ELTWISE")
@@ -1603,7 +1784,7 @@ void InferencePipelineSchedule::ScheduleNaiveScheduleOnePostOperation(int instru
                 load_address.push_back(load_offset);
                 load_offset += Instruction_ld.element_num;
                 Instruction_ld.instruction_group_index = instruction_group_index;
-                PIMCOM_6_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_ld);
+                PIMCOM_4_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_ld);
             }
 
             for (int j = 1; j < PostOperationNode.provider_num; ++j)
@@ -1629,7 +1810,7 @@ void InferencePipelineSchedule::ScheduleNaiveScheduleOnePostOperation(int instru
                     Instruction_elt.rd_offset = load_offset + (k-input_channel_start) * output_channel_length;
                     Instruction_elt.element_num = provider_channel_length;
                     Instruction_elt.instruction_group_index = instruction_group_index;
-                    PIMCOM_6_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_elt);
+                    PIMCOM_4_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_elt);
                 }
             }
 
@@ -1646,7 +1827,7 @@ void InferencePipelineSchedule::ScheduleNaiveScheduleOnePostOperation(int instru
             Instruction_st.rd_offset = input_channel_start * output_channel_length;
             Instruction_st.element_num = (input_channel_end - input_channel_start + 1) * output_channel_length;
             Instruction_st.instruction_group_index = instruction_group_index;
-            PIMCOM_6_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_st);
+            PIMCOM_4_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_st);
         }
     }
     else if (PostOperationNode.operation ==  "OP_CONCAT")
@@ -1680,7 +1861,7 @@ void InferencePipelineSchedule::ScheduleNaiveScheduleOnePostOperation(int instru
                 Instruction_ld.element_num = (input_channel_end - input_channel_start + 1) * provider_channel_length;
                 load_offset += Instruction_ld.element_num;
                 Instruction_ld.instruction_group_index = instruction_group_index;
-                PIMCOM_6_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_ld);
+                PIMCOM_4_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_ld);
             }
 
             int source_offset = 0;
@@ -1704,7 +1885,7 @@ void InferencePipelineSchedule::ScheduleNaiveScheduleOnePostOperation(int instru
                     Instruction_vm.element_num = provider_channel_length;
                     source_offset += Instruction_vm.element_num;
                     Instruction_vm.instruction_group_index = instruction_group_index;
-                    PIMCOM_6_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_vm);
+                    PIMCOM_4_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_vm);
                 }
                 destination_offset += provider_channel_length;
             }
@@ -1723,7 +1904,7 @@ void InferencePipelineSchedule::ScheduleNaiveScheduleOnePostOperation(int instru
             Instruction_st.element_num = (input_channel_end - input_channel_start + 1) * output_channel_length;
             store_offset += Instruction_st.element_num;
             Instruction_st.instruction_group_index = instruction_group_index;
-            PIMCOM_6_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_st);
+            PIMCOM_4_post_multi_core_instruction_ir[instruction_group_index].core_list[i].instruction_ir_list.push_back(Instruction_st);
         }
     }
 }
@@ -1879,30 +2060,37 @@ void InferencePipelineSchedule::ScheduleNaivePickOnePostOperation()
 }
 
 
-const static int inference_start = 100;
-const static int inference_end = 100;
+
 void InferencePipelineSchedule::ScheduleNaive()
 {
     clock_t time_use = 0;
     // TODO：未考虑是否死锁。或许会出现这种情况。
     int effective_instruction_group_num = GetEffectiveInstructionGroupNum();
     int instruction_group_num = user_given_instruction_group_num > effective_instruction_group_num ? effective_instruction_group_num : user_given_instruction_group_num;
-    PIMCOM_6_base_instruction_ir.resize(instruction_group_num);
-    PIMCOM_6_input_cycle_record.resize(node_num);
-
+    PIMCOM_4_base_instruction_ir.resize(instruction_group_num);
+    PIMCOM_4_input_cycle_record.resize(node_num);
+    bool append_instruction = 1;
+    std::cout << " instruction_group_num:" << instruction_group_num << std::endl;
     for (int j = 0; j < instruction_group_num; ++j)
     {
+        int instruction_group_index;
+        if (AllInOnInstructionGroup)
+            instruction_group_index = 0;
+        else
+            instruction_group_index = j;
         for (int k = 0; k < operation_cycle_before_comm; k++)
-        {
-            ScheduleNaiveStage1(j, 1);
-            ScheduleNaiveStage2(j);
+        {   clock_t timestamp_a = clock();
+            ScheduleNaiveStage1(instruction_group_index, append_instruction);
+            clock_t timestamp_b = clock();
+            time_use += timestamp_b - timestamp_a;
+            ScheduleNaiveStage2(instruction_group_index, append_instruction);
             for (int & n : add_flag) {n = 0;}
         }
         //// Stage3的作用是融合同一个复制块的计算结果，得到完整的结果
-        ScheduleNaiveStage3(j);
+        ScheduleNaiveStage3(instruction_group_index, append_instruction);
         for (int & n : comm_flag) {n = 0;}
         //// StageACT的作用是为每个复制块的计算结果添加激活层
-        ScheduleNaiveStageAct(j);
+        ScheduleNaiveStageAct(instruction_group_index, append_instruction);
         for (int & n : activate_flag) {n = 0;}
         for (int & n : node_offset_instruction_group) {n = 0;}
         for (int l = 0; l < MAX_AG; ++l) {node_offset_inference_old[l] = node_offset_inference[l];}
@@ -1912,7 +2100,7 @@ void InferencePipelineSchedule::ScheduleNaive()
     //// 情况并且填满node_offset_inference和input_cycle_record，主要是为了后面这些操作是处理完整数据
 //    FillTheWholeInstructionGroup();
     //// Stage4的作用是把不同复制块的数据传到一起，以方便下一步后处理的开展
-//    ScheduleNaiveStage4(0);
+//    ScheduleNaiveStage4WithoutWB(0);
     //// mode为0的Stage6两个作用:同level节点间传输数据、产生copy_offset_flag
 //    ScheduleNaiveStage6(0, 0, 0, 0);
     for (int & n : visit_stage6) {n = 0;}
@@ -1925,19 +2113,94 @@ void InferencePipelineSchedule::ScheduleNaive()
     for (int & n : visit_stage6) {n = 0;}
     for (int & n : node_offset_inference) {n = 0;}
     for (int & n : AG_accumulated_num) {n = 0;}
-    ScheduleNaivePickOnePostOperation();
-//    std::cout << double(time_use) / CLOCKS_PER_SEC << "s" << std::endl;
+//    ScheduleNaivePickOnePostOperation();
+    std::cout << double(USE) / CLOCKS_PER_SEC << "s" << std::endl;
+    std::cout << double(time_use) / CLOCKS_PER_SEC << "s" << std::endl;
+}
+
+
+void InferencePipelineSchedule::ScheduleNaiveForEvaluation()
+{
+    clock_t time_use = 0;
+    // TODO：未考虑是否死锁。或许会出现这种情况。
+    int effective_instruction_group_num = GetEffectiveInstructionGroupNum();
+    int instruction_group_num = user_given_instruction_group_num > effective_instruction_group_num ? effective_instruction_group_num : user_given_instruction_group_num;
+    PIMCOM_4_base_instruction_ir.resize(instruction_group_num);
+    PIMCOM_4_input_cycle_record.resize(node_num);
+    bool append_instruction = 1;
+    std::cout << "instruction_group_num:" << instruction_group_num << std::endl;
+    int operation_cycle = 0;
+    for (int j = 0; j < instruction_group_num; ++j)
+    {
+        // 同时记录两个
+        if (PIMCOM_4_unique_instruction_group_index.count(j+1) == 0 && PIMCOM_4_unique_instruction_group_index.count(j) == 0)
+        {
+            operation_cycle += operation_cycle_before_comm;
+            continue;
+        }
+//        std::cout << "instruction_group_index:" << j << " operation_cycle:" << operation_cycle << std::endl;
+        PIMCOM_4_evaluation_instruction_group_index.push_back(j);
+        for (int k = 0; k < operation_cycle_before_comm; k++)
+        {
+            clock_t timestamp_a = clock();
+            ScheduleNaiveStage1ForEvaluation(j, operation_cycle, append_instruction);
+            clock_t timestamp_b = clock();
+            time_use += timestamp_b - timestamp_a;
+            ScheduleNaiveStage2(j, append_instruction);
+            for (int & n : add_flag) {n = 0;}
+            operation_cycle += 1;
+        }
+        //// Stage3的作用是融合同一个复制块的计算结果，得到完整的结果
+        ScheduleNaiveStage3(j, append_instruction);
+        for (int & n : comm_flag) {n = 0;}
+        //// StageACT的作用是为每个复制块的计算结果添加激活层
+        ScheduleNaiveStageAct(j, append_instruction);
+        for (int & n : activate_flag) {n = 0;}
+        for (int & n : node_offset_instruction_group) {n = 0;}
+        for (int l = 0; l < MAX_AG; ++l) {node_offset_inference_old[l] = node_offset_inference[l];}
+    }
+    //// 注意不能加sep，因为其type还不确定。
+//    AddSeparateLine(instruction_group_num-1);
+    //// 情况并且填满node_offset_inference和input_cycle_record，主要是为了后面这些操作是处理完整数据
+//    FillTheWholeInstructionGroup();
+    //// Stage4的作用是把不同复制块的数据传到一起，以方便下一步后处理的开展
+//    ScheduleNaiveStage4WithoutWB(0);
+    //// mode为0的Stage6两个作用:同level节点间传输数据、产生copy_offset_flag
+//    ScheduleNaiveStage6(0, 0, 0, 0);
+    for (int & n : visit_stage6) {n = 0;}
+    //// Stage5的作用是添加后处理指令
+//    ScheduleNaiveStage5(0, 0, 0);
+    for (int & n : visit_stage5) {n = 0;}
+    for (int & n : wb_flag) {n = 0;}
+    //// mode为1的Stage6的作用是将本轮推理周期产生的数据进行传递，以便下一个推理周期的运行
+//    ScheduleNaiveStage6(0, 0, 1, 0);
+    for (int & n : visit_stage6) {n = 0;}
+    for (int & n : node_offset_inference) {n = 0;}
+    for (int & n : AG_accumulated_num) {n = 0;}
+//    ScheduleNaivePickOnePostOperation();
+    std::cout << "stage1 preparation: " << double(USE) / CLOCKS_PER_SEC << "s" << std::endl;
+    std::cout << "stage1 total: " << double(time_use) / CLOCKS_PER_SEC << "s" << std::endl;
+}
+
+
+void InferencePipelineSchedule::Clear()
+{
+    for (int & n : AG_output_element_size) {n = 0;}
+    for (int & n : node_offset_inference) {n = 0;}
+    for (int & n : node_offset_inference_old) {n = 0;}
+    comm_index = 0;
+    USE = 0;
 }
 
 
 void InferencePipelineSchedule::ShowInstruction()
 {
-    for (int inf = inference_start; inf <= inference_end ; ++inf)
-    {
-        std::cout << "***************************************************  inference_index " << inf << " *************************************************" << std::endl;
+//    for (int inf = inference_start; inf <= inference_end ; ++inf)
+//    {
+//        std::cout << "***************************************************  inference_index " << inf << " *************************************************" << std::endl;
 
 //        std::cout << std::endl;
-//        int instruction_group_num_1 = PIMCOM_6_base_instruction_ir.size();
+//        int instruction_group_num_1 = PIMCOM_4_base_instruction_ir.size();
 //        for (int i = 0; i < instruction_group_num_1; ++i)
 //        {
 //            std::cout << std::endl;
@@ -1945,10 +2208,10 @@ void InferencePipelineSchedule::ShowInstruction()
 //            for (int j = 0; j < core_num; ++j)
 //            {
 //                std::cout << "core " << j << std::endl;
-//                int instruction_num = PIMCOM_6_base_instruction_ir[i].core_list[j].instruction_ir_list.size();
+//                int instruction_num = PIMCOM_4_base_instruction_ir[i].core_list[j].instruction_ir_list.size();
 //                for (int k = 0; k < instruction_num; ++k)
 //                {
-//                    struct INST Instruction = PIMCOM_6_base_instruction_ir[i].core_list[j].instruction_ir_list[k];
+//                    struct INST Instruction = PIMCOM_4_base_instruction_ir[i].core_list[j].instruction_ir_list[k];
 //                    int instruction_level_index = Instruction.level_index;
 //                    if (instruction_level_index > inf)
 //                    {
@@ -1978,19 +2241,19 @@ void InferencePipelineSchedule::ShowInstruction()
 //        }
 
 //        std::cout << std::endl;
-//        int instruction_group_num_2 = PIMCOM_6_post_multi_core_instruction_ir.size();
+//        int instruction_group_num_2 = PIMCOM_4_post_multi_core_instruction_ir.size();
 //        for (int i = 0; i < instruction_group_num_2; ++i)
 //        {
 //            std::cout << std::endl;
 //            std::cout << "========================================= post multi core instruction_group " << i << " =========================================" << std::endl;
-//            int post_multi_core_num = PIMCOM_6_post_multi_core_instruction_ir[i].core_list.size();
+//            int post_multi_core_num = PIMCOM_4_post_multi_core_instruction_ir[i].core_list.size();
 //            for (int j = 0; j < post_multi_core_num; ++j)
 //            {
 //                std::cout << "core " << j << std::endl;
-//                int instruction_num = PIMCOM_6_post_multi_core_instruction_ir[i].core_list[j].instruction_ir_list.size();
+//                int instruction_num = PIMCOM_4_post_multi_core_instruction_ir[i].core_list[j].instruction_ir_list.size();
 //                for (int k = 0; k < instruction_num; ++k)
 //                {
-//                    struct INST Instruction = PIMCOM_6_post_multi_core_instruction_ir[i].core_list[j].instruction_ir_list[k];
+//                    struct INST Instruction = PIMCOM_4_post_multi_core_instruction_ir[i].core_list[j].instruction_ir_list[k];
 //                    int instruction_level_index = Instruction.level_index;
 //                    if (instruction_level_index > inf)
 //                    {
@@ -2000,7 +2263,7 @@ void InferencePipelineSchedule::ShowInstruction()
 //                }
 //            }
 //        }
-    }
+//    }
 }
 
 
@@ -2011,17 +2274,17 @@ void InferencePipelineSchedule::SaveInstruction()
     {
         OutFile << "***************************************************  inference_index " << inf << " *************************************************" << std::endl;
 
-        int instruction_group_num_1 = PIMCOM_6_base_instruction_ir.size();
+        int instruction_group_num_1 = PIMCOM_4_base_instruction_ir.size();
         for (int i = 0; i < instruction_group_num_1; ++i)
         {
             OutFile << "========================================= base instruction_group " << i << " =========================================" << std::endl;
             for (int j = 0; j < core_num; ++j)
             {
                 OutFile << "core " << j << std::endl;
-                int instruction_num = PIMCOM_6_base_instruction_ir[i].core_list[j].instruction_ir_list.size();
+                int instruction_num = PIMCOM_4_base_instruction_ir[i].core_list[j].instruction_ir_list.size();
                 for (int k = 0; k < instruction_num; ++k)
                 {
-                    struct INST Instruction = PIMCOM_6_base_instruction_ir[i].core_list[j].instruction_ir_list[k];
+                    struct INST Instruction = PIMCOM_4_base_instruction_ir[i].core_list[j].instruction_ir_list[k];
                     int instruction_level_index = Instruction.level_index;
                     if (instruction_level_index > inf)
                     {
@@ -2036,10 +2299,10 @@ void InferencePipelineSchedule::SaveInstruction()
         for (int j = 0; j < core_num; ++j)
         {
             OutFile << "core " << j << std::endl;
-            int instruction_num = PIMCOM_6_post_instruction_ir[0].core_list[j].instruction_ir_list.size();
+            int instruction_num = PIMCOM_4_post_instruction_ir[0].core_list[j].instruction_ir_list.size();
             for (int k = 0; k < instruction_num; ++k)
             {
-                struct INST Instruction = PIMCOM_6_post_instruction_ir[0].core_list[j].instruction_ir_list[k];
+                struct INST Instruction = PIMCOM_4_post_instruction_ir[0].core_list[j].instruction_ir_list[k];
                 int instruction_level_index = Instruction.level_index;
                 if (instruction_level_index > inf)
                 {
@@ -2049,10 +2312,10 @@ void InferencePipelineSchedule::SaveInstruction()
             }
         }
 
-        int instruction_group_num_2 = PIMCOM_6_post_multi_core_instruction_ir.size();
-        std::map<int, PIMCOM_6_instruction_ir>::iterator iter;
+        int instruction_group_num_2 = PIMCOM_4_post_multi_core_instruction_ir.size();
+        std::map<int, PIMCOM_4_instruction_ir>::iterator iter;
         int index = 0;
-        for (iter = PIMCOM_6_post_multi_core_instruction_ir.begin(); iter != PIMCOM_6_post_multi_core_instruction_ir.end() ; iter++)
+        for (iter = PIMCOM_4_post_multi_core_instruction_ir.begin(); iter != PIMCOM_4_post_multi_core_instruction_ir.end() ; iter++)
         {
             OutFile << "========================================= post multi core instruction_group " << index << " =========================================" << std::endl;
             int post_multi_core_num = iter->second.core_list.size();

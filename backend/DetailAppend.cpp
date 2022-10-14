@@ -9,36 +9,15 @@ static int EndIndexInInputChannel[MAX_AG] = {0};
 static int OffsetForFC[MAX_AG] = {0};
 static int SourceIndex[MAX_AG] = {0};
 
-extern std::map<int, struct PIMCOM_node> PIMCOM_node_list;
-extern std::vector<struct PIMCOM_2_AG_partition> PIMCOM_2_AG_partition;
-extern std::vector<struct PIMCOM_2_virtual_crossbar> PIMCOM_2_virtual_crossbar;
-extern struct PIMCOM_2_resource_info PIMCOM_2_resource_info;
-extern std::vector<int> PIMCOM_2_effective_node;
-extern struct PIMCOM_3_hierarchy_map PIMCOM_3_hierarchy_map;
-extern std::map<int, std::vector<int>> PIMCOM_3_virtual_core_crossbar_map;
-extern std::map<int,int> PIMCOM_4_physical_core_placement;
-extern std::vector<struct PIMCOM_2_virtual_crossbar> PIMCOM_4_physical_crossbar_placement;
-extern std::vector<struct PIMCOM_5_pool_info> PIMCOM_5_pool_info;
-extern struct PIMCOM_6_first_AG_info PIMCOM_6_first_AG_info;
-extern struct PIMCOM_6_physical_core_AG_map PIMCOM_6_physical_core_AG_map;
-extern struct PIMCOM_6_recv_info PIMCOM_6_recv_info;
-extern std::vector<struct PIMCOM_6_instruction_ir> PIMCOM_6_base_instruction_ir;
-extern std::vector<std::vector<int>> PIMCOM_6_input_cycle_record;
-extern std::map<int, struct PIMCOM_6_instruction_ir> PIMCOM_6_post_instruction_ir;
-extern std::map<int, struct PIMCOM_6_instruction_ir> PIMCOM_6_post_multi_core_instruction_ir;
-extern struct PIMCOM_7_reload_info PIMCOM_7_reload_info;
-extern std::vector<struct PIMCOM_6_instruction_ir> PIMCOM_7_base_instruction_with_reload;
-
-struct PIMCOM_8_detailed_instruction_ir PIMCOM_8_detailed_instruction_ir;
-
 
 void DetailAppend::AppendDetail()
 {
-    instruction_group_num = PIMCOM_7_base_instruction_with_reload.size();
-    core_num = PIMCOM_6_physical_core_AG_map.core_list.size();
-    PIMCOM_8_detailed_instruction_ir.detailed_1_prepare_for_input.instruction_group.resize(instruction_group_num);
+    instruction_group_num = PIMCOM_5_base_instruction_with_reload.size();
+    core_num = PIMCOM_4_virtual_core_AG_map.core_list.size();
+    PIMCOM_6_detailed_instruction_ir.detailed_1_prepare_for_input.instruction_group.resize(instruction_group_num);
     PreProcess();
     PrepareForInput();
+    Clear();
 }
 
 void DetailAppend::PreProcess()
@@ -68,7 +47,7 @@ void DetailAppend::PrepareForInput()
 {
     for (int i = 0; i < instruction_group_num; ++i)
     {
-        struct PIMCOM_6_instruction_ir InstructionGroup = PIMCOM_7_base_instruction_with_reload[i];
+        struct PIMCOM_4_instruction_ir InstructionGroup = PIMCOM_5_base_instruction_with_reload[i];
         for (int j = 0; j < core_num; ++j)
         {
             std::vector<struct INST> InstructionIrList = InstructionGroup.core_list[j].instruction_ir_list;
@@ -80,7 +59,7 @@ void DetailAppend::PrepareForInput()
 
                 if (operation != "MVMUL")
                 {
-                    PIMCOM_8_detailed_instruction_ir.detailed_1_prepare_for_input.instruction_group[i].core_list[j].instruction_ir_list.push_back(tmpInstruction);
+                    PIMCOM_6_detailed_instruction_ir.detailed_1_prepare_for_input.instruction_group[i].core_list[j].instruction_ir_list.push_back(tmpInstruction);
                     continue;
                 }
 
@@ -160,13 +139,13 @@ void DetailAppend::PrepareForInput()
                         Instruction.rd_offset = rd_offset;
                         rd_offset += move_vector_size;
 
-                        PIMCOM_8_detailed_instruction_ir.detailed_1_prepare_for_input.instruction_group[i].core_list[j].instruction_ir_list.push_back(Instruction);
+                        PIMCOM_6_detailed_instruction_ir.detailed_1_prepare_for_input.instruction_group[i].core_list[j].instruction_ir_list.push_back(Instruction);
                         if (IsBreak)
                         {
                             break;
                         }
                     }
-                    PIMCOM_8_detailed_instruction_ir.detailed_1_prepare_for_input.instruction_group[i].core_list[j].instruction_ir_list.push_back(tmpInstruction);
+                    PIMCOM_6_detailed_instruction_ir.detailed_1_prepare_for_input.instruction_group[i].core_list[j].instruction_ir_list.push_back(tmpInstruction);
                 }
                 else if (Node.operation == "OP_FC")
                 {
@@ -194,8 +173,8 @@ void DetailAppend::PrepareForInput()
                     Instruction.destination = AG_index_in_total;
                     Instruction.rs_offset = OffsetForFC[AG_index_in_total];
                     Instruction.rd_offset = 0;
-                    PIMCOM_8_detailed_instruction_ir.detailed_1_prepare_for_input.instruction_group[i].core_list[j].instruction_ir_list.push_back(Instruction);
-                    PIMCOM_8_detailed_instruction_ir.detailed_1_prepare_for_input.instruction_group[i].core_list[j].instruction_ir_list.push_back(tmpInstruction);
+                    PIMCOM_6_detailed_instruction_ir.detailed_1_prepare_for_input.instruction_group[i].core_list[j].instruction_ir_list.push_back(Instruction);
+                    PIMCOM_6_detailed_instruction_ir.detailed_1_prepare_for_input.instruction_group[i].core_list[j].instruction_ir_list.push_back(tmpInstruction);
 
                     int start_index_in_input_channel = 0;
                     if (AG_index_in_replication != 0)
@@ -209,9 +188,15 @@ void DetailAppend::PrepareForInput()
     }
 }
 
+void DetailAppend::Clear()
+{
+    for (int i = 0; i < MAX_AG; ++i) EndInputChannelIndex[i] = 0;
+    for (int i = 0; i < MAX_AG; ++i) EndIndexInInputChannel[i] = 0;
+    for (int i = 0; i < MAX_AG; ++i) OffsetForFC[i] = 0;
+    for (int i = 0; i < MAX_AG; ++i) SourceIndex[i] = 0;
+}
 
-static int inference_start = 100;
-static int inference_end = 100;
+
 void DetailAppend::SaveInstruction()
 {
     std::ofstream OutFile("../fast3.txt", std::ios::out | std::ios::trunc);
@@ -224,10 +209,10 @@ void DetailAppend::SaveInstruction()
             for (int j = 0; j < core_num; ++j)
             {
                 OutFile << "core " << j << std::endl;
-                int instruction_num = PIMCOM_8_detailed_instruction_ir.detailed_1_prepare_for_input.instruction_group[i].core_list[j].instruction_ir_list.size();
+                int instruction_num = PIMCOM_6_detailed_instruction_ir.detailed_1_prepare_for_input.instruction_group[i].core_list[j].instruction_ir_list.size();
                 for (int k = 0; k < instruction_num; ++k)
                 {
-                    struct INST Instruction = PIMCOM_8_detailed_instruction_ir.detailed_1_prepare_for_input.instruction_group[i].core_list[j].instruction_ir_list[k];
+                    struct INST Instruction = PIMCOM_6_detailed_instruction_ir.detailed_1_prepare_for_input.instruction_group[i].core_list[j].instruction_ir_list[k];
                     int instruction_level_index = Instruction.level_index;
                     if (instruction_level_index > inf)
                     {

@@ -4,8 +4,7 @@
 
 #include "WeightReplication.h"
 
-extern std::map<int, struct PIMCOM_node> PIMCOM_node_list;
-
+//static int pre_replication_num[20] = {11, 10, 4, 2, 1, 4, 2, 11, 9, 4, 9, 2, 11};
 static int pre_replication_num[20] = {2,3,1};
 
 void WeightReplication::ReplicateWeight()
@@ -17,25 +16,27 @@ void WeightReplication::ReplicateWeight()
 void WeightReplication::ReplicateRandomly()
 {
     int node_num = PIMCOM_node_list.size();
-    std::random_device rd;
-    auto gen = std::default_random_engine(rd());
-    std::uniform_int_distribution<int> dis(1,3);
-    int I = 0;
+    srand(unsigned(time(0)));
+    int RandomUpper = 4;
+    int RandomLower = 1;
+    int appointed_index = 0;
     for (int i = 0; i < node_num; ++i)
     {
         if(PIMCOM_node_list[i].operation == "OP_CONV")
         {
-            // 随机指定
-            int replication_num = dis(gen);
+            //// 随机指定
+//            int replication_num = rand() % (RandomUpper - RandomLower + 1) + RandomLower;
+//            std::cout << replication_num << ", ";
 //            PIMCOM_node_list[i].replication_num = replication_num;
-            // 固定倍数
-            PIMCOM_node_list[i].replication_num = 2;
-            // 指定倍数 [2, 3, 1]
-//            PIMCOM_node_list[i].replication_num = pre_replication_num[I++];
+            //// 固定倍数
+            PIMCOM_node_list[i].replication_num = 4;
+            //// 指定倍数
+//            PIMCOM_node_list[i].replication_num = pre_replication_num[appointed_index++];
         }
         else if (PIMCOM_node_list[i].operation == "OP_FC")
             PIMCOM_node_list[i].replication_num = 1;
     }
+    std::cout << std::endl;
 }
 
 

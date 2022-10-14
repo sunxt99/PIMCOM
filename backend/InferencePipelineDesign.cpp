@@ -4,19 +4,6 @@
 
 #include "InferencePipelineDesign.h"
 
-extern std::map<int, struct PIMCOM_node> PIMCOM_node_list;
-extern std::vector<struct PIMCOM_2_AG_partition> PIMCOM_2_AG_partition;
-extern std::vector<struct PIMCOM_2_virtual_crossbar> PIMCOM_2_virtual_crossbar;
-extern struct PIMCOM_2_resource_info PIMCOM_2_resource_info;
-extern std::vector<int> PIMCOM_2_effective_node;
-extern struct PIMCOM_3_hierarchy_map PIMCOM_3_hierarchy_map;
-extern std::map<int, std::vector<int>> PIMCOM_3_virtual_core_crossbar_map;
-extern std::map<int,int> PIMCOM_4_physical_core_placement;
-extern std::vector<struct PIMCOM_2_virtual_crossbar> PIMCOM_4_physical_crossbar_placement;
-
-//std::map<int, struct PIMCOM_5_pool_info> PIMCOM_5_pool_info;
-std::vector<struct PIMCOM_5_pool_info> PIMCOM_5_pool_info;
-
 void InferencePipelineDesign::DesignPipeline()
 {
     node_num = PIMCOM_node_list.size();
@@ -25,7 +12,7 @@ void InferencePipelineDesign::DesignPipeline()
     ClassifyTheNode(0, 0, 0);
     GetAugmentedNodeList();
     RefineAugmentedNodeList(0, 0, 0, 0, 0);
-    GetPoolInfo();
+    Clear();
 //    ShowClassificationInfo(DNNInfo);
 }
 
@@ -94,16 +81,16 @@ static int node_visited[MAX_NODE] = {0};
 void InferencePipelineDesign::GetAugmentedNodeList()
 {
     // 根据4_physical_crossbar_placement信息，添加CONV层或FC层的AG0_core_index和AG0_index_in_total的信息
-    int crossbar_num = PIMCOM_4_physical_crossbar_placement.size();
+    int crossbar_num = PIMCOM_2_virtual_crossbar.size();
     for (int i = 0; i < crossbar_num; ++i)
     {
-        int node_index = PIMCOM_4_physical_crossbar_placement[i].node_index;
-        int AG_index_in_replication = PIMCOM_4_physical_crossbar_placement[i].array_group_in_weight;
+        int node_index = PIMCOM_2_virtual_crossbar[i].node_index;
+        int AG_index_in_replication = PIMCOM_2_virtual_crossbar[i].array_group_in_weight;
         if (AG_index_in_replication == 0 && node_visited[node_index] != 1)
         {
             node_visited[node_index] = 1;
-            int core_index = PIMCOM_4_physical_crossbar_placement[i].physical_core;
-            int AG_index_in_total = PIMCOM_4_physical_crossbar_placement[i].array_group_total;
+            int core_index = PIMCOM_2_virtual_crossbar[i].vcore;
+            int AG_index_in_total = PIMCOM_2_virtual_crossbar[i].array_group_total;
             PIMCOM_node_list[node_index].AG0_core_index = core_index;
             PIMCOM_node_list[node_index].AG0_index_in_total = AG_index_in_total;
             PIMCOM_node_list[node_index].AG0_node_index = node_index;
@@ -154,9 +141,9 @@ void InferencePipelineDesign::GetAugmentedNodeList()
 static int visit_refine_node_list[MAX_NODE] = {0};
 void InferencePipelineDesign::RefineAugmentedNodeList(int node_index, int level_index, int AG0_core_index, int AG0_index_in_total, int AG0_node_index)
 {
-    // 5_1的目的很单纯，就是得到那些后处理节点的AG0_core_index和AG0_index_in_total。是5_2的准备阶段。
+    // GetAugmentedNodeList只得到了CONV和FC的AG0_core_index和AG0_index_in_total，
+    // RefineAugmentedNodeList的目的是得到那些后处理节点的AG0_core_index和AG0_index_in_total
     // 如果不先得到这些后处理节点的信息，而是在5_2中一边生成信息一边生成指令，就会出现某些节点的AG0信息还没获取到就先被使用的情况。不可以。
-
     int consumer_num = PIMCOM_node_list[node_index].consumer_num;
     if (consumer_num == 0)
     {
@@ -194,80 +181,15 @@ void InferencePipelineDesign::RefineAugmentedNodeList(int node_index, int level_
     }
 }
 
-void InferencePipelineDesign::GetPoolInfo()
+
+
+void InferencePipelineDesign::Clear()
 {
-    PIMCOM_5_pool_info.resize(node_num);
-    for (int n = 0; n < node_num; ++n)
-    {
-        struct PIMCOM_node Node = PIMCOM_node_list[n];
-        if (Node.operation != "OP_POOL")
-            continue;
-
-        struct param Params = Node.param;
-        int input_H = Node.input_dim[2];
-        int input_W = Node.input_dim[3];
-        int pool_kernel_w = Params.kernel_w;
-        int pool_kernel_h = Params.kernel_h;
-        int pool_padding_h0 = Params.pad_h0;
-        int pool_padding_h1 = Params.pad_h1;
-        int pool_padding_w0 = Params.pad_w0;
-        int pool_padding_w1 = Params.pad_w1;
-        int pool_stride_w = Params.stride_w;
-        int pool_stride_h = Params.stride_h;
-
-        int output_W = floor(float(input_W + pool_padding_w0 + pool_padding_w1 - pool_kernel_w) / float(pool_stride_w)) + 1;
-        int output_H = floor(float(input_H + pool_padding_h0 + pool_padding_h1 - pool_kernel_h) / float(pool_stride_h)) + 1;
-        int info_output_W = Node.output_dim[3];
-        int info_output_H = Node.output_dim[2];
-        if (info_output_W != output_W || info_output_H != output_H)
-        {
-            std::cout << " Output Size Doesn't Match" << std::endl;
-            return;
-        }
-        PIMCOM_5_pool_info[n].input_index.resize(Node.input_dim[2] * Node.input_dim[3]);
-        PIMCOM_5_pool_info[n].output_index.resize(info_output_W * info_output_H);
-        int output_index = 0;
-        for (int i = 0; i < output_H; ++i)
-        {
-            for (int j = 0; j < output_W; ++j)
-            {
-                int start_address = i * pool_stride_h * input_W + j *  pool_stride_w;
-                if (i != 0)
-                    start_address -= pool_padding_h0 * input_W;
-                if (j != 0)
-                    start_address -= pool_padding_w0;
-                int start_row = start_address / input_W;
-                int start_col = start_address % input_W;
-
-                int pool_h_num = pool_kernel_h;
-                if (i == 0)
-                    pool_h_num -= pool_padding_h0;
-                else if (i == output_H-1)
-                    if (start_row + pool_kernel_h > input_H)
-                        pool_h_num -= pool_padding_h1;
-
-                int pool_w_num = pool_kernel_w;
-                if (j == 0)
-                    pool_w_num -= pool_padding_w0;
-                else if (j == output_W-1)
-                    if (start_col + pool_kernel_w > input_W)
-                        pool_w_num -= pool_padding_w1;
-
-                for (int h = 0; h < pool_h_num ; ++h)
-                {
-                    for (int w = 0; w < pool_w_num; ++w)
-                    {
-                        int position = start_address + w + h * input_W;
-                        PIMCOM_5_pool_info[n].input_index[position].push_back(output_index);
-                        PIMCOM_5_pool_info[n].output_index[output_index].push_back(position);
-                    }
-                }
-                output_index += 1;
-            }
-        }
-    }
+    for (int i = 0; i < MAX_AG; ++i) concat_rest_num[i] = 0;
+    for (int i = 0; i < MAX_AG; ++i) concat_max_level[i] = 0;
+    for (int i = 0; i < MAX_NODE; ++i) node_visited[i] = 0;
+    for (int i = 0; i < MAX_NODE; ++i) visit_refine_node_list[i] = 0;
 }
-
 
 void InferencePipelineDesign::ShowClassificationInfo()
 {

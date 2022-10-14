@@ -5,8 +5,9 @@
 #ifndef PIMCOM_DETAILAPPEND_H
 #define PIMCOM_DETAILAPPEND_H
 
-#include "common.h"
+#include "../common.h"
 #include "../configure.h"
+#include "PIMCOMVariable.h"
 
 class DetailAppend
 {
@@ -19,6 +20,7 @@ private:
     int core_num;
     void PreProcess();
     void PrepareForInput();
+    void Clear();
 };
 
 

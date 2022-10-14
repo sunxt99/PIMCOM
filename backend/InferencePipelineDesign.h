@@ -5,8 +5,9 @@
 #ifndef PIMCOM_INFERENCEPIPELINEDESIGN_H
 #define PIMCOM_INFERENCEPIPELINEDESIGN_H
 
-#include "common.h"
+#include "../common.h"
 #include "../configure.h"
+#include "PIMCOMVariable.h"
 
 class InferencePipelineDesign
 {
@@ -20,7 +21,7 @@ private:
     void GetAugmentedNodeList();
     void RefineAugmentedNodeList(int node_index, int level_index, int AG0_core_index, int AG0_index_in_total, int AG0_node_index);
     void GetConcatMaxLevelForInception();
-    void GetPoolInfo();
+    void Clear();
 };
 
 
