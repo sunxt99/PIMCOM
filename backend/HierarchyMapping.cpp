@@ -589,7 +589,7 @@ void HierarchyMapping::ShowMemoryInfo()
 
 void HierarchyMapping::SaveMemoryInfo()
 {
-    std::ofstream MemoryFile("../memory.txt", std::ios::out | std::ios::trunc);
+    std::ofstream MemoryFile("../output/memory.txt", std::ios::out | std::ios::trunc);
     MemoryFile << "============ core memory statistic ============" << std::endl;
     float core_memory_sum = 0.0;
     for (int i = 0; i < PIMCOM_3_mapping_result.size(); i++)

@@ -20,6 +20,7 @@ private:
     int Check();
     void PartitionNaive();
     void PartitionExploration();
+    void DivideInputCycle(std::vector<int> &start_address_vector, std::vector<int> &end_address_vector, int input_cycle_num_total, int replication_num);
 };
 
 

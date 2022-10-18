@@ -199,7 +199,7 @@ void DetailAppend::Clear()
 
 void DetailAppend::SaveInstruction()
 {
-    std::ofstream OutFile("../fast3.txt", std::ios::out | std::ios::trunc);
+    std::ofstream OutFile("../output/fast3.txt", std::ios::out | std::ios::trunc);
     for (int inf = inference_start; inf <= inference_end ; ++inf)
     {
         OutFile << "***************************************************  inference_index " << inf << " *************************************************" << std::endl;

@@ -17,7 +17,7 @@ void WeightReplication::ReplicateRandomly()
 {
     int node_num = PIMCOM_node_list.size();
     srand(unsigned(time(0)));
-    int RandomUpper = 4;
+    int RandomUpper = 12;
     int RandomLower = 1;
     int appointed_index = 0;
     for (int i = 0; i < node_num; ++i)
@@ -25,11 +25,11 @@ void WeightReplication::ReplicateRandomly()
         if(PIMCOM_node_list[i].operation == "OP_CONV")
         {
             //// 随机指定
-//            int replication_num = rand() % (RandomUpper - RandomLower + 1) + RandomLower;
-//            std::cout << replication_num << ", ";
-//            PIMCOM_node_list[i].replication_num = replication_num;
+            int replication_num = rand() % (RandomUpper - RandomLower + 1) + RandomLower;
+            std::cout << replication_num << ", ";
+            PIMCOM_node_list[i].replication_num = replication_num;
             //// 固定倍数
-            PIMCOM_node_list[i].replication_num = 4;
+//            PIMCOM_node_list[i].replication_num = 4;
             //// 指定倍数
 //            PIMCOM_node_list[i].replication_num = pre_replication_num[appointed_index++];
         }

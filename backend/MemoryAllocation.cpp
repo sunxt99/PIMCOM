@@ -12,65 +12,6 @@ void MemoryAllocation::AllocateMemory()
     Clear();
 }
 
-int MemoryAllocation::GetInputChannelFromOutputIndex(int node_index, int output_index, bool is_last)
-{
-    struct PIMCOM_node Node = PIMCOM_node_list[node_index];
-    struct param Params = Node.param;
-    int input_H = Node.input_dim[2];
-    int input_W = Node.input_dim[3];
-    int conv_kernel_w = Params.kernel_w;
-    int conv_kernel_h = Params.kernel_h;
-    int conv_padding_h0 = Params.pad_h0;
-    int conv_padding_h1 = Params.pad_h1;
-    int conv_padding_w0 = Params.pad_w0;
-    int conv_padding_w1 = Params.pad_w1;
-    int conv_stride_w = Params.stride_w;
-    int conv_stride_h = Params.stride_h;
-
-    int output_W = floor(float(input_W + conv_padding_w0 + conv_padding_w1 - conv_kernel_w) / float(conv_stride_w)) + 1;
-    int output_H = floor(float(input_H + conv_padding_h0 + conv_padding_h1 - conv_kernel_h) / float(conv_stride_h)) + 1;
-    int info_output_W = Node.output_dim[3];
-    int info_output_H = Node.output_dim[2];
-    if (info_output_W != output_W || info_output_H != output_H)
-    {
-        std::cout << " Output Size Doesn't Match" << std::endl;
-        return -1;
-    }
-
-    int i = output_index / output_W;
-    int j = output_index % output_W;
-    int start_address = i * conv_stride_h * input_W + j *  conv_stride_w;
-    if (i != 0)
-        start_address -= conv_padding_h0 * input_W;
-    if (j != 0)
-        start_address -= conv_padding_w0;
-    int start_row = start_address / input_W;
-    int start_col = start_address % input_W;
-
-    int conv_h_num = conv_kernel_h;
-    if (i == 0)
-        conv_h_num -= conv_padding_h0;
-    else if (i == output_H-1)
-        if (start_row + conv_kernel_h > input_H)
-            conv_h_num -= conv_padding_h1;
-
-    int conv_w_num = conv_kernel_w;
-    if (j == 0)
-        conv_w_num -= conv_padding_w0;
-    else if (j == output_W-1)
-        if (start_col + conv_kernel_w > input_W)
-            conv_w_num -= conv_padding_w1;
-
-    int h = 0;
-    int w = 0;
-    if (is_last)
-    {
-        h = conv_h_num-1;
-        w = conv_w_num-1;
-    }
-    int position = start_address + w + h * input_W; // input_index
-    return position;
-}
 
 
 void MemoryAllocation::GetMultiInputChannelFromMultiOutputIndex(std::set<int> & all_input_channel_index, int node_index, int output_index_begin,int output_index_end)
@@ -214,8 +155,12 @@ void MemoryAllocation::BaseAllocate()
                         {
                             case ByRow:
                             {
-                                int input_channel_start = GetInputChannelFromOutputIndex(node_index, input_cycle_start, 0);
-                                int input_channel_end = GetInputChannelFromOutputIndex(node_index, input_cycle_end, 1);
+                                int min_max_start[2];
+                                GetMinMaxInputChannelFromInputCycle(min_max_start, node_index, input_cycle_start, input_cycle_end);
+//                                int input_channel_start = GetInputChannelFromOutputIndex(node_index, input_cycle_start, 0);
+//                                int input_channel_end = GetInputChannelFromOutputIndex(node_index, input_cycle_end, 1);
+                                int input_channel_start = min_max_start[0];
+                                int input_channel_end = min_max_start[1];
                                 struct INST Instruction_ld;
                                 Instruction_ld.type = MEM;
                                 Instruction_ld.level_index = PIMCOM_node_list[node_index].level_index;
@@ -452,7 +397,7 @@ void MemoryAllocation::Clear()
 
 void MemoryAllocation::SaveInstruction()
 {
-    std::ofstream OutFile("../fast2.txt", std::ios::out | std::ios::trunc);
+    std::ofstream OutFile("../output/fast2.txt", std::ios::out | std::ios::trunc);
     for (int inf = inference_start; inf <= inference_end ; ++inf)
     {
         OutFile << "***************************************************  inference_index " << inf << " *************************************************" << std::endl;

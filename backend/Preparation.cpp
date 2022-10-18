@@ -32,10 +32,6 @@ std::map<int, int> PIMCOM_4_core_instruction_group_num;
 
 std::vector<std::pair<struct MapSortStruct, int>> PIMCOM_3_compute_crossbar_ratio;
 std::vector<std::vector<struct AGMapStruct>> PIMCOM_3_mapping_result;
-std::map<int, std::set<int>> PIMCOM_4_effective_provider_consumer_relation;
-std::map<int, std::set<int>> PIMCOM_4_effective_consumer_provider_relation;
-std::map<int, std::set<int>> PIMCOM_4_provider_consumer_relation_with_pool;
-std::map<int, std::set<int>> PIMCOM_4_consumer_provider_relation_with_pool;
 
 void PreProcess(Json::Value & DNNInfo)
 {
@@ -267,14 +263,15 @@ void GetConvPoolInputOutputInfo()
                 int pool_w_num = pool_kernel_w;
                 if (j < normal_start_index_in_w)
                     pool_w_num = pool_w_num - pool_padding_w0 + j * pool_stride_w;
-                if (start_col + pool_kernel_w > input_W)
-                    pool_w_num = pool_w_num - (start_col + pool_kernel_w - input_W);
+                if (start_col + pool_w_num > input_W)
+                    pool_w_num = pool_w_num - (start_col + pool_w_num - input_W);
 
                 int pool_h_num = pool_kernel_h;
                 if (i < normal_start_index_in_h)
                     pool_h_num = pool_h_num - pool_padding_h0 + i * pool_stride_h;
-                if (start_row + pool_kernel_h > input_H)
-                    pool_h_num = pool_h_num - (start_row + pool_kernel_h - input_H);
+                if (start_row + pool_h_num > input_H)
+                    pool_h_num = pool_h_num - (start_row + pool_h_num - input_H);
+
 
                 for (int h = 0; h < pool_h_num ; ++h)
                 {

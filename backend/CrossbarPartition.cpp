@@ -85,33 +85,28 @@ void CrossbarPartition::PartitionNaive()
             //// 考虑Core无法容下一个完整AG的情况
             int AGP = ceil(float(WBarNum) / float(CoreW*CoreH));
             pimcom2AgPartition.AGP_num = AGP;
+            //// 如果复制倍数小于划窗数，那么复制倍数最大等于划窗数
+            if (origin_rep_num > sliding_window)
+                origin_rep_num = sliding_window;
             pimcom2AgPartition.replication_num_origin = origin_rep_num;
             pimcom2AgPartition.replication_num = origin_rep_num * AGP;
 
             // 最后还是不要以replication对input进行区分
 //            NodePartition["input_cycle_per_replication"] = int(ceil( float(sliding_window)/float(origin_rep_num)));
 
-            int *input_num_per_rep = new int[origin_rep_num];
-            for (int p = 0; p < origin_rep_num-1; ++p)
-            {
-                input_num_per_rep[p] = ceil(float(sliding_window)/float(origin_rep_num));
-            }
-            input_num_per_rep[origin_rep_num-1] = sliding_window-(origin_rep_num-1)*ceil(float(sliding_window)/float(origin_rep_num));
-            int *input_num_till_rep = new int[origin_rep_num];
-            int tmpsum = 0;
-            for (int p = 0; p < origin_rep_num; ++p)
-            {
-                // 这里的input_num其实是input_cycle_num
-                tmpsum += input_num_per_rep[p];
-                input_num_till_rep[p] = tmpsum;
-            }
 //            DNNInfo["node_list"][i]["replication"].resize(origin_rep_num * AGP);
+
             PIMCOM_node_list[i].AGP = AGP;
             PIMCOM_node_list[i].replication_num_origin = origin_rep_num;
             PIMCOM_node_list[i].replication_num = origin_rep_num*AGP;
             PIMCOM_node_list[i].input_cycle_in_total = pimcom2AgPartition.input_cycle_in_total;
 
             pimcom2AgPartition.replication.resize(origin_rep_num * AGP);
+
+            int input_cycle_num_total = sliding_window;
+            std::vector<int> start_address_vector;
+            std::vector<int> end_address_vector;
+            DivideInputCycle(start_address_vector, end_address_vector, input_cycle_num_total, origin_rep_num);
 
             for (int j = 0; j < origin_rep_num; ++j)
             {
@@ -153,9 +148,12 @@ void CrossbarPartition::PartitionNaive()
                             // 增加一个字段：每个权重复制块中包含多少个AG (考虑Core无法容下一个完整AG的情况)
                             pimcom2VirtualCrossbar.AG_num_per_replication = HBarNum;
                             // 增加字段input_cycle信息
-                            pimcom2VirtualCrossbar.input_cycle_this_replication = input_num_per_rep[j];
-                            pimcom2VirtualCrossbar.input_cycle_this_replication_start = j == 0 ? 0 : input_num_till_rep[j-1];
-                            pimcom2VirtualCrossbar.input_cycle_this_replication_end = j == (origin_rep_num-1) ? (sliding_window-1) : (input_num_till_rep[j]-1);
+//                            pimcom2VirtualCrossbar.input_cycle_this_replication = input_num_per_rep[j];
+//                            pimcom2VirtualCrossbar.input_cycle_this_replication_start = j == 0 ? 0 : input_num_till_rep[j-1];
+//                            pimcom2VirtualCrossbar.input_cycle_this_replication_end = j == (origin_rep_num-1) ? (sliding_window-1) : (input_num_till_rep[j]-1);
+                            pimcom2VirtualCrossbar.input_cycle_this_replication = end_address_vector[j*AGP+agp] - start_address_vector[j*AGP+agp] + 1;
+                            pimcom2VirtualCrossbar.input_cycle_this_replication_start = start_address_vector[j*AGP+agp];
+                            pimcom2VirtualCrossbar.input_cycle_this_replication_end = end_address_vector[j*AGP+agp];
                             // 增加agp信息
                             pimcom2VirtualCrossbar.agp_index = agp;
                             pimcom2VirtualCrossbar.agp_offset = WStart * CrossbarW;
@@ -164,9 +162,9 @@ void CrossbarPartition::PartitionNaive()
                         ag_list.AG_index = ArrayGroupIndex;
                         pimcom2AgPartition.replication[j*AGP+agp].AG_list.push_back(ag_list);
                         pimcom2AgPartition.replication[j*AGP+agp].AG_index.push_back(ArrayGroupIndex);
-                        pimcom2AgPartition.replication[j*AGP+agp].input_cycle_this_replication = input_num_per_rep[j];
-                        pimcom2AgPartition.replication[j*AGP+agp].input_cycle_this_start = j == 0 ? 0 : input_num_till_rep[j-1];
-                        pimcom2AgPartition.replication[j*AGP+agp].input_cycle_this_end = j == (origin_rep_num-1) ? (sliding_window-1) : (input_num_till_rep[j]-1);
+                        pimcom2AgPartition.replication[j*AGP+agp].input_cycle_this_replication = end_address_vector[j*AGP+agp] - start_address_vector[j*AGP+agp] + 1;
+                        pimcom2AgPartition.replication[j*AGP+agp].input_cycle_this_start = start_address_vector[j*AGP+agp];
+                        pimcom2AgPartition.replication[j*AGP+agp].input_cycle_this_end = end_address_vector[j*AGP+agp];
                         pimcom2AgPartition.replication[j*AGP+agp].agp_index = agp;
 
                         ArrayGroupIndex += 1;
@@ -190,7 +188,26 @@ void CrossbarPartition::PartitionNaive()
     PIMCOM_2_resource_info.AGs = ArrayGroupIndex;
 }
 
-
+void CrossbarPartition::DivideInputCycle(std::vector<int> &start_address_vector, std::vector<int> &end_address_vector, int input_cycle_num_total, int replication_num)
+{
+    start_address_vector.clear();
+    end_address_vector.clear();
+    std::vector<int> input_cycle_allocated;
+    for (int i = 0; i < replication_num; ++i)
+        input_cycle_allocated.push_back(ceil(float(input_cycle_num_total) / float(replication_num)));
+    int minus_num = ceil(float(input_cycle_num_total) / float(replication_num)) * replication_num - input_cycle_num_total;
+    for (int i = 0; i < minus_num; ++i)
+        input_cycle_allocated[replication_num-1-i] -= 1;
+    int start_address;
+    int end_address = -1;
+    for (int i = 0; i < replication_num; ++i)
+    {
+        start_address = end_address + 1;
+        end_address = start_address + input_cycle_allocated[i] - 1;
+        start_address_vector.push_back(start_address);
+        end_address_vector.push_back(end_address);
+    }
+}
 
 void CrossbarPartition::PartitionExploration()
 {

@@ -35,8 +35,4 @@ extern std::map<int, int> PIMCOM_4_core_instruction_group_num;
 extern std::vector<std::pair<struct MapSortStruct, int>> PIMCOM_3_compute_crossbar_ratio;
 extern std::vector<std::vector<struct AGMapStruct>> PIMCOM_3_mapping_result;
 
-extern std::map<int, std::set<int>> PIMCOM_4_effective_provider_consumer_relation;
-extern std::map<int, std::set<int>> PIMCOM_4_effective_consumer_provider_relation;
-extern std::map<int, std::set<int>> PIMCOM_4_provider_consumer_relation_with_pool;
-extern std::map<int, std::set<int>> PIMCOM_4_consumer_provider_relation_with_pool;
 #endif //PIMCOM_PIMCOMVARIABLE_H

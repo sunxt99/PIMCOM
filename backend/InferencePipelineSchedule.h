@@ -8,6 +8,7 @@
 #include "../common.h"
 #include "../configure.h"
 #include "PIMCOMVariable.h"
+#include "common_function.h"
 
 class InferencePipelineSchedule
 {
@@ -26,7 +27,6 @@ private:
     std::vector<int> post_start_address;
     std::vector<int> post_end_address;
     void ResetPostStartAndEndAddress(int origin_length, int assumed_core_num);
-    int GetInputChannelFromOutputIndex( int node_index, int output_index, bool is_last);
     void SchedulePreparation();
     void ScheduleNaive();
     void ScheduleNaiveStage1(int instruction_group_index, bool append_instruction);

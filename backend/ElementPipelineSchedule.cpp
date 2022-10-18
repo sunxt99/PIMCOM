@@ -2,6 +2,10 @@
 // Created by SXT on 2022/10/11.
 //
 
+/////////////////////////////////////////////// 重要假设 ///////////////////////////////////////////////
+/////////////////////////////////////// FC和CONV层只有一个生产者  ///////////////////////////////////////
+
+
 #include "ElementPipelineSchedule.h"
 ElementPipelineSchedule::ElementPipelineSchedule()
 {
@@ -12,6 +16,9 @@ ElementPipelineSchedule::ElementPipelineSchedule()
 
 std::vector<std::vector<int>> node_AG_mapping;               //// 记录每个节点有哪些AG
 std::vector<std::vector<int>> node_AG0_index_in_replication; //// 记录每个节点若干个rep的AG0的AG_index_in_total
+std::vector<int> node_replication_num;
+std::vector<std::map<int,int>> node_provider_index_2_index_in_all_providers; //// node_provider_index_2_index_in_all_providers[vec_node_index][provider_index]=0、1、2（也就是根据provider_index得到index_in_all_provider）
+
 
 std::vector<std::vector<int>> AG_key_input_channel_index;
 std::vector<std::vector<int>> AG_min_max_input_channel_index;
@@ -19,26 +26,36 @@ static int AG_produce_output_channel_num[MAX_AG] = {0};
 std::vector<std::vector<int>> AG_ready_input_channel_list;
 static int AG_rest_output_channel_num[MAX_AG] = {0};
 
+std::vector<std::vector<std::vector<int>>> pool_rep_min_max_output_channel_index; //// 输出任务的划分。pool_rep_min_max_output_channel_index[pool_node_index][replication_index][0]是min，ool_rep_min_max_output_channel_index[pool_node_index][replication_index][1]是max
+std::vector<std::vector<std::vector<int>>> pool_rep_min_max_input_channel_index;  //// 根据输出任务，不同rep需要存储不同的输入通道。pool_rep_min_max_input_channel_index[pool_node_index][replication_index][0]是min，pool_rep_min_max_input_channel_index[pool_node_index][replication_index][1]是max
+std::vector<std::vector<std::vector<int>>> pool_rep_key_input_channel_index;      //// 不同rep不同input_cycle的key input channel index。
+std::vector<std::vector<int>> pool_rep_produce_output_channel_num;                //// 不同rep已经处理的pool操作数。pool_rep_produce_output_channel_num[pool_node_index][replication_index]
+std::vector<std::vector<std::vector<int>>> pool_rep_ready_input_channel_list;
+
+//// 对于vector操作，input channel即output channel，所以不用区分
+std::vector<std::vector<std::vector<int>>> vec_rep_min_max_channel_index; //// vec_rep_min_max_channel_index[vec_node_index][replication_index][0]、vec_rep_min_max_channel_index[vec_node_index][replication_index][1]
+std::vector<std::vector<std::vector<std::vector<int>>>> vec_rep_prov_ready_input_channel_list;   ////vec_rep_prov_ready_input_channel_list[vec_node_index][replication_index][provider_index]是一个列表，长度为算子的input_channel_num
+std::vector<std::vector<int>> vec_rep_produce_output_channel_num;         //// vec_rep_produce_output_channel_num[vec_node_index][replication_index]就是该算子该rep已经处理的output_channel数目
+std::vector<std::vector<std::vector<int>>> vec_prov_rep_index;        //// vec_prov_rep_index[vec_node_index][prov_index]是一个列表，列表的第i位为j，说明vec_node_index的第prov_index的生产者提供的第i个input_channel来自其第j个rep。
+
 struct ready_input_channel_info
 {
     int start_input_channel_index;
     int ready_input_channel_num;
 };
 std::vector<std::map<int, struct ready_input_channel_info>> AG_new_ready_input_channel_list; //// AG_new_ready_input_channel_list[AG_index][rep_index] 这里的rep_index是前一层的rep_index，因为是前一层的不同rep向本AG来传递数据。
-
-std::vector<std::vector<std::vector<int>>> pool_rep_min_max_output_channel_index; //// 输出任务的划分
-std::vector<std::vector<std::vector<int>>> pool_rep_key_input_channel_index;
-std::vector<std::vector<std::vector<int>>> pool_rep_min_max_input_channel_index;  //// 根据输出任务，不同rep需要存储不同的输入通道
-std::vector<std::vector<int>> pool_rep_produce_output_channel_num;                //// 不同rep已经处理的pool操作数
-std::vector<std::vector<std::vector<int>>> pool_rep_ready_input_channel_list;     //// 不同rep已经准备好的通道数目
-std::vector<int> pool_rep_mapping; //// 记录每个pool前面的conv的replication_num
 std::vector<std::vector<std::map<int, struct ready_input_channel_info>>> pool_rep_new_ready_input_channel_list;
+
 
 std::vector<struct AG_info_schedule> PIMCOM_4_element_AG_info_list;
 std::vector<int> PIMCOM_4_element_AG_index_in_replication;
+std::vector<std::vector<int>> PIMCOM_4_topology_provider_consumer_relation;
+std::vector<std::vector<int>> PIMCOM_4_topology_consumer_provider_relation;
 
 void ElementPipelineSchedule::SchedulePreparation()
 {
+    node_replication_num.resize(node_num);
+
     //// 生成一个AG_info_list，包括所有AG的各种信息
     int AG_num = PIMCOM_2_resource_info.AGs;
     PIMCOM_4_element_AG_index_in_replication.resize(AG_num);
@@ -86,49 +103,66 @@ void ElementPipelineSchedule::SchedulePreparation()
     }
 
 
-    //// 前面生成的生产者消费者关系不太对劲，缺少了29，这里修改一下
-//    PIMCOM_4_provider_consumer_relation_with_pool[29].clear();
-//    PIMCOM_4_provider_consumer_relation_with_pool[29].insert(31);
-//    PIMCOM_4_provider_consumer_relation_with_pool[31].insert(33);
-//    std::cout << "provider - consumer" << std::endl;
-//    for (auto iter = PIMCOM_4_provider_consumer_relation_with_pool.begin(); iter != PIMCOM_4_provider_consumer_relation_with_pool.end() ; ++iter)
-//    {
-//        std::cout << iter->first << " :" ;
-//        for (auto iter2 = iter->second.begin();  iter2 != iter->second.end() ; ++iter2)
-//        {
-//            std::cout << *iter2 << " " ;
-//            PIMCOM_4_consumer_provider_relation_with_pool[*iter2].insert(iter->first);
-//        }
-//        std::cout << std::endl;
-//    }
-//    std::cout << "consumer - provider" << std::endl;
-//    for (auto iter = PIMCOM_4_consumer_provider_relation_with_pool.begin(); iter != PIMCOM_4_consumer_provider_relation_with_pool.end() ; ++iter)
-//    {
-//        std::cout << iter->first << " :" ;
-//        for (auto iter2 = iter->second.begin();  iter2 != iter->second.end() ; ++iter2)
-//        {
-//            std::cout << *iter2 << " " ;
-//        }
-//        std::cout << std::endl;
-//    }
-    //// 对于简单的直线拓扑也可以直接一些
+    //// 增加对于复杂拓扑的支持
+    PIMCOM_4_topology_provider_consumer_relation.resize(node_num);
+    PIMCOM_4_topology_consumer_provider_relation.resize(node_num);
+    node_provider_index_2_index_in_all_providers.resize(node_num);
     for (int i = 0; i < node_num; ++i)
     {
-        if (PIMCOM_node_list[i].operation == "OP_CONV" || PIMCOM_node_list[i].operation == "OP_FC" || PIMCOM_node_list[i].operation == "OP_POOL")
+        std::string operation = PIMCOM_node_list[i].operation;
+        if (PIMCOM_node_list[i].consumer_num == 0)
         {
-            int consumer_index = i+1;
-            while(consumer_index < node_num && PIMCOM_node_list[consumer_index].operation != "OP_CONV" && PIMCOM_node_list[consumer_index].operation != "OP_FC" && PIMCOM_node_list[consumer_index].operation != "OP_POOL")
+            PIMCOM_4_topology_provider_consumer_relation[i].push_back(0);
+            continue;
+        }
+        if (operation == "OP_CONV" || operation == "OP_FC")
+        {
+            int consumer_index = PIMCOM_node_list[i].consumer_index[0]; // 一般认为CONV和FC只有一个消费者
+            std::string consumer_operation = PIMCOM_node_list[consumer_index].operation;
+            if (consumer_operation == "OP_RELU" || consumer_operation == "OP_TANH" || consumer_operation == "OP_SIGMOID")
             {
-                consumer_index++;
+                for (int j = 0; j < PIMCOM_node_list[consumer_index].consumer_index.size(); ++j)
+                {
+                    int consumer_consumer_index = PIMCOM_node_list[consumer_index].consumer_index[j];
+                    PIMCOM_4_topology_provider_consumer_relation[i].push_back(consumer_consumer_index);
+                    PIMCOM_4_topology_consumer_provider_relation[consumer_consumer_index].push_back(i);
+                    node_provider_index_2_index_in_all_providers[consumer_consumer_index][i] = node_provider_index_2_index_in_all_providers[consumer_consumer_index].size();
+                }
             }
-            if (consumer_index < node_num)
+            else
             {
-                PIMCOM_4_consumer_provider_relation_with_pool[consumer_index].insert(i);
-                PIMCOM_4_provider_consumer_relation_with_pool[i].insert(consumer_index);
+                PIMCOM_4_topology_provider_consumer_relation[i].push_back(consumer_index);
+                PIMCOM_4_topology_consumer_provider_relation[consumer_index].push_back(i);
+                node_provider_index_2_index_in_all_providers[consumer_index][i] = node_provider_index_2_index_in_all_providers[consumer_index].size();
+            }
+        }
+        else
+        {
+            if (operation == "OP_RELU" || operation == "OP_TANH" || operation == "OP_SIGMOID")
+            {
+                int provider_index = PIMCOM_node_list[i].provider_index[0];
+                if (PIMCOM_node_list[provider_index].operation == "OP_CONV" || PIMCOM_node_list[provider_index].operation == "OP_FC")
+                    continue;
+            }
+            int consumer_num = PIMCOM_node_list[i].consumer_num;
+            for (int j = 0; j < consumer_num; ++j)
+            {
+                int consumer_index = PIMCOM_node_list[i].consumer_index[j];
+                PIMCOM_4_topology_provider_consumer_relation[i].push_back(consumer_index);
+                PIMCOM_4_topology_consumer_provider_relation[consumer_index].push_back(i);
+                node_provider_index_2_index_in_all_providers[consumer_index][i] = node_provider_index_2_index_in_all_providers[consumer_index].size();
             }
         }
     }
 
+    std::cout << "provider - consumer" << std::endl;
+    for (int i = 0; i < node_num; ++i)
+    {
+        for (int j = 0; j < PIMCOM_4_topology_provider_consumer_relation[i].size(); ++j)
+        {
+            std::cout << i << " :" << PIMCOM_4_topology_provider_consumer_relation[i][j] << std::endl;
+        }
+    }
 
     //// 得到每个AG的key_input_channel_index
     AG_key_input_channel_index.resize(AG_num);
@@ -150,7 +184,7 @@ void ElementPipelineSchedule::SchedulePreparation()
                     AG_rest_output_channel_num[AG_index] = rest_output_channel_num;
                     int input_cycle_start_this_replication = PIMCOM_2_AG_partition[i].replication[j].input_cycle_this_start;
                     int input_cycle_end_this_replication = PIMCOM_2_AG_partition[i].replication[j].input_cycle_this_end;
-                    AG_key_input_channel_index[AG_index].resize(input_cycle_end_this_replication - input_cycle_start_this_replication+1);
+                    AG_key_input_channel_index[AG_index].resize(input_cycle_end_this_replication - input_cycle_start_this_replication + 1);
 //                    std::cout << "AG_index:" << AG_index << "  length:" << (input_cycle_end_this_replication - input_cycle_start_this_replication+1) << std::endl;
                     for (int l = input_cycle_start_this_replication; l <= input_cycle_end_this_replication; ++l)
                     {
@@ -163,16 +197,18 @@ void ElementPipelineSchedule::SchedulePreparation()
         }
         else
         {
-            // TODO 仍然只能处理VGG等简单数据流，所以只选择了begin的元素。未来可能还需要支持更多网络
-            int effective_provider_node_index = *PIMCOM_4_consumer_provider_relation_with_pool[node_index].begin();
+            int provider_node_index = PIMCOM_4_topology_consumer_provider_relation[node_index][0]; //// 应该没有问题，FC的生产者一般只有一个。
+            //// 找到该fc的前面conv或pool或fc的生产者，这关系到key_input_channel_index
+            while (PIMCOM_node_list[provider_node_index].operation != "OP_CONV" && PIMCOM_node_list[provider_node_index].operation != "OP_POOL" && PIMCOM_node_list[provider_node_index].operation != "OP_FC")
+                provider_node_index = PIMCOM_4_topology_consumer_provider_relation[provider_node_index][0];
             //// 如果FC的前面是CONV，则key_channel_index是output_channel_num-1。意思是需要等前一个层把全部结果都穿过来之后再进行处理。而如果FC的前面是FC，则为0，只要前面FC传一次就够。
             int key_channel_index = 0;
-            if (PIMCOM_node_list[effective_provider_node_index].operation == "OP_CONV" || PIMCOM_node_list[effective_provider_node_index].operation == "OP_POOL")
+            if (PIMCOM_node_list[provider_node_index].operation == "OP_CONV" || PIMCOM_node_list[provider_node_index].operation == "OP_POOL")
             {
-                int output_channel_num = PIMCOM_node_list[effective_provider_node_index].output_dim[2] * PIMCOM_node_list[effective_provider_node_index].output_dim[3];
+                int output_channel_num = PIMCOM_node_list[provider_node_index].output_dim[2] * PIMCOM_node_list[provider_node_index].output_dim[3];
                 key_channel_index = output_channel_num-1; // output_channel_index = output_channel_num - 1
             }
-            else if (PIMCOM_node_list[effective_provider_node_index].operation == "OP_FC")
+            else if (PIMCOM_node_list[provider_node_index].operation == "OP_FC")
             {
                 key_channel_index = 0;
             }
@@ -187,7 +223,7 @@ void ElementPipelineSchedule::SchedulePreparation()
         }
     }
 
-
+    //// 准备其他AG的信息（用于CONV和FC层的准备与开始）
     AG_ready_input_channel_list.resize(PIMCOM_2_resource_info.AGs);
     AG_new_ready_input_channel_list.resize(PIMCOM_2_resource_info.AGs);
     AG_min_max_input_channel_index.resize(AG_num);
@@ -202,10 +238,10 @@ void ElementPipelineSchedule::SchedulePreparation()
         {
             int input_cycle_start = PIMCOM_3_hierarchy_map.whole[i][0].input_cycle_this_replication_start;
             int input_cycle_end = PIMCOM_3_hierarchy_map.whole[i][0].input_cycle_this_replication_end;
-            int min_input_channel_index = GetInputChannelFromOutputIndex(node_index, input_cycle_start, 0);
-            int max_input_channel_index = GetInputChannelFromOutputIndex(node_index, input_cycle_end, 1);
-            AG_min_max_input_channel_index[i][0] = min_input_channel_index;
-            AG_min_max_input_channel_index[i][1] = max_input_channel_index;
+            int min_max_input_channel_index[2];
+            GetMinMaxInputChannelFromInputCycle(min_max_input_channel_index, node_index, input_cycle_start, input_cycle_end);
+            AG_min_max_input_channel_index[i][0] = min_max_input_channel_index[0];
+            AG_min_max_input_channel_index[i][1] = min_max_input_channel_index[1];
             AG_ready_input_channel_list[i].resize(input_channel_num);
         }
         else
@@ -215,8 +251,8 @@ void ElementPipelineSchedule::SchedulePreparation()
             //// 这里size不设置成1是因为有的FC的前一层是CONV，需要接收完后才能开始FC的计算
             AG_ready_input_channel_list[i].resize(50000);
         }
-        int effective_provider_index = *PIMCOM_4_effective_consumer_provider_relation[node_index].begin(); // TODO effective指的是conv和fc，一般只有一个生产者或消费者
-//        int effect
+        int provider_index = PIMCOM_4_topology_consumer_provider_relation[node_index][0];
+        int effective_provider_index = PIMCOM_node_list[provider_index].AG0_node_index; // TODO effective指的是conv和fc，一般只有一个生产者或消费者
         node_AG_mapping[node_index].push_back(AG_index);
     }
 
@@ -224,27 +260,30 @@ void ElementPipelineSchedule::SchedulePreparation()
     GetRelatedAGIndex();
 
 
-/////////////////////////////////////////////////// POOL-REP划分方式 ///////////////////////////////////////////////////
-//////////                  pool_rep_min_max_output_channel_index;            /// 输出任务的划分
-//////////                  pool_rep_key_input_channel_index;                 //// 不同rep、不同output_channel的关键输入通道
-//////////                  pool_rep_min_max_input_channel_index;             //// 根据输出任务，不同rep需要存储不同的输入通道
-//////////                  pool_rep_produce_output_channel_num;              //// 不同rep已经处理的pool操作数
-//////////                  pool_rep_ready_input_channel_list;               / /// 不同rep已经准备好的通道数目
+
+    /////////////////////////////////////////////////// POOL-REP ///////////////////////////////////////////////////
+    //////////                  pool_rep_min_max_output_channel_index;            /// 输出任务的划分
+    //////////                  pool_rep_key_input_channel_index;                 //// 不同rep、不同output_channel的关键输入通道
+    //////////                  pool_rep_min_max_input_channel_index;             //// 根据输出任务，不同rep需要存储不同的输入通道
+    //////////                  pool_rep_produce_output_channel_num;              //// 不同rep已经处理的pool操作数
 
     //// 对不同rep的pool进行任务的划分
     pool_rep_min_max_output_channel_index.resize(node_num);
     pool_rep_min_max_input_channel_index.resize(node_num);
-    pool_rep_mapping.resize(node_num);
+    pool_rep_ready_input_channel_list.resize(node_num);
     for (int i = 0; i < node_num; ++i)
     {
         if (PIMCOM_node_list[i].operation == "OP_POOL")
         {
+            int input_channel_num = PIMCOM_node_list[i].input_dim[2] * PIMCOM_node_list[i].input_dim[3]; // pool output channel num
             int output_channel_num = PIMCOM_node_list[i].output_dim[2] * PIMCOM_node_list[i].output_dim[3]; // pool output channel num
-            int provider_index = *PIMCOM_4_consumer_provider_relation_with_pool[i].begin();
-            int replication_num = PIMCOM_node_list[provider_index].replication_num;
-            pool_rep_mapping[i] = replication_num;
+            int provider_index = PIMCOM_4_topology_consumer_provider_relation[i][0]; //// POOL只有一个生产者
+            int effective_provider_index = PIMCOM_node_list[provider_index].AG0_node_index;
+            int replication_num = PIMCOM_node_list[effective_provider_index].replication_num;
+            node_replication_num[i] = replication_num;
             pool_rep_min_max_output_channel_index[i].resize(replication_num);
             pool_rep_min_max_input_channel_index[i].resize(replication_num);
+            pool_rep_ready_input_channel_list[i].resize(replication_num);
             std::vector<int> start_address_vector;
             std::vector<int> end_address_vector;
             DivideTheOutputChannel(start_address_vector, end_address_vector, output_channel_num, replication_num);
@@ -252,16 +291,18 @@ void ElementPipelineSchedule::SchedulePreparation()
             {
                 pool_rep_min_max_output_channel_index[i][j].push_back(start_address_vector[j]); // start_output_index
                 pool_rep_min_max_output_channel_index[i][j].push_back(end_address_vector[j]); // end_output_index
-                int min_input_channel = GetInputChannelFromOutputIndex(i, start_address_vector[j], 0);
-                int max_input_channel = GetInputChannelFromOutputIndex(i, end_address_vector[j], 1);
-                pool_rep_min_max_input_channel_index[i][j].push_back(min_input_channel);
-                pool_rep_min_max_input_channel_index[i][j].push_back(max_input_channel);
+                int min_max_input_channel_index[2];
+                GetMinMaxInputChannelFromInputCycle(min_max_input_channel_index, i, start_address_vector[j], end_address_vector[j]);
+//                int min_input_channel = GetInputChannelFromOutputIndex(i, start_address_vector[j], 0);
+//                int max_input_channel = GetInputChannelFromOutputIndex(i, end_address_vector[j], 1);
+                pool_rep_min_max_input_channel_index[i][j].push_back(min_max_input_channel_index[0]);
+                pool_rep_min_max_input_channel_index[i][j].push_back(min_max_input_channel_index[1]);
+                pool_rep_ready_input_channel_list[i][j].resize(input_channel_num);
             }
         }
     }
 
     pool_rep_key_input_channel_index.resize(node_num);
-    pool_rep_ready_input_channel_list.resize(node_num);
     pool_rep_new_ready_input_channel_list.resize(node_num);
     pool_rep_produce_output_channel_num.resize(node_num);
     for (int i = 0; i < node_num; ++i)
@@ -270,15 +311,13 @@ void ElementPipelineSchedule::SchedulePreparation()
         if (operation == "OP_POOL")
         {
             int input_channel_num = PIMCOM_node_list[i].input_dim[2] * PIMCOM_node_list[i].input_dim[3];
-            int pre_rep_num = pool_rep_mapping[i]; // previous_conv_replication_num
-            pool_rep_ready_input_channel_list[i].resize(pre_rep_num);
+            int pre_rep_num = node_replication_num[i]; // previous_conv_replication_num
             pool_rep_new_ready_input_channel_list[i].resize(pre_rep_num);
             pool_rep_key_input_channel_index[i].resize(pre_rep_num);
             pool_rep_produce_output_channel_num[i].resize(pre_rep_num);
             for (int j = 0; j < pre_rep_num; ++j)
             {
                 int output_channel_num = pool_rep_min_max_output_channel_index[i][j][1] - pool_rep_min_max_output_channel_index[i][j][0] + 1;
-                pool_rep_ready_input_channel_list[i][j].resize(input_channel_num);
                 pool_rep_key_input_channel_index[i][j].resize(output_channel_num);
                 for (int k = 0; k < output_channel_num; ++k)
                 {
@@ -289,10 +328,60 @@ void ElementPipelineSchedule::SchedulePreparation()
             }
         }
     }
+
+
+    /////////////////////////////////////////////////// VEC-REP  ///////////////////////////////////////////////////
+    ////    vec_rep_min_max_channel_index;
+    ////            vec_rep_min_max_channel_index[vec_node_index][replication_index][0]、vec_rep_min_max_channel_index[vec_node_index][replication_index][1]
+    ////    std::vector<std::vector<std::vector<std::vector<int>>>> vec_rep_prov_ready_input_channel_list;
+    ////            vec_rep_prov_ready_input_channel_list[vec_node_index][replication_index][provider_index]是一个列表，长度为算子的input_channel_num
+    ////    std::vector<std::vector<int>> vec_rep_produce_output_channel_num;
+    ////            vec_rep_produce_output_channel_num[vec_node_index][replication_index]就是该算子该rep已经处理的output_channel数目
+    vec_rep_min_max_channel_index.resize(node_num);
+    vec_rep_produce_output_channel_num.resize(node_num);
+    vec_rep_prov_ready_input_channel_list.resize(node_num);
+    vec_prov_rep_index.resize(node_num);
+    for (int i = 0; i < node_num; ++i)
+    {
+        std::string operation = PIMCOM_node_list[i].operation;
+        if (operation == "OP_ELTWISE" || operation == "OP_CONCAT" || operation == "OP_RELU" || operation == "OP_TANH" || operation == "OP_SIGMOID")
+        {
+            if (PIMCOM_4_topology_provider_consumer_relation[i].size() == 0)
+                continue; // 跳过CONV和FC后的RELU
+            int provider_num = PIMCOM_node_list[i].provider_num;
+            int effective_provider_index = PIMCOM_node_list[i].AG0_node_index;
+            int replication_num = PIMCOM_node_list[effective_provider_index].replication_num;
+            node_replication_num[i] = replication_num;
+            int output_channel_num = PIMCOM_node_list[i].output_dim[2] * PIMCOM_node_list[i].output_dim[3]; //// output_channel_num == input_channel_num for VEC OP
+            std::vector<int> start_address_vector;
+            std::vector<int> end_address_vector;
+            DivideTheOutputChannel(start_address_vector, end_address_vector, output_channel_num, replication_num);
+            vec_rep_min_max_channel_index[i].resize(replication_num);
+            vec_rep_prov_ready_input_channel_list[i].resize(replication_num);
+            vec_rep_produce_output_channel_num[i].resize(replication_num);
+            for (int j = 0; j < replication_num; ++j)
+            {
+                vec_rep_min_max_channel_index[i][j].push_back(start_address_vector[j]);
+                vec_rep_min_max_channel_index[i][j].push_back(end_address_vector[j]);
+                vec_rep_prov_ready_input_channel_list[i][j].resize(provider_num);
+                for (int k = 0; k < provider_num; ++k)
+                {
+                    vec_rep_prov_ready_input_channel_list[i][j][k].resize(output_channel_num);
+                }
+            }
+
+            vec_prov_rep_index[i].resize(provider_num);
+            for (int j = 0; j < provider_num; ++j)
+            {
+                vec_prov_rep_index[i][j].resize(output_channel_num);
+            }
+        }
+    }
 }
 
 void ElementPipelineSchedule::DivideTheOutputChannel(std::vector<int> &start_address_vector, std::vector<int> &end_address_vector, int output_channel_num_total, int replication_num)
 {
+    //// 如果有output_channel_num < replication_num的情况，那么处理长度为0的rep的start会比end高1。可以根据这一点来跳过这些rep。
     start_address_vector.clear();
     end_address_vector.clear();
     std::vector<int> output_channel_allocated;
@@ -339,27 +428,38 @@ void ElementPipelineSchedule::GetRelatedAGIndex()
     }
 }
 
-clock_t part_time_use = 0;
 
-bool ElementPipelineSchedule::CheckNormalPrepared(int AG_index_in_total)
-{
-    int produced_output_channel_num = AG_produce_output_channel_num[AG_index_in_total];
-    int key_input_channel_index = AG_key_input_channel_index[AG_index_in_total][produced_output_channel_num];
-    int start = AG_min_max_input_channel_index[AG_index_in_total][0];
-    for (int i = start; i <= key_input_channel_index; ++i)
-    {
-        if (AG_ready_input_channel_list[AG_index_in_total][i] != 1)
-        {
-            return false;
-        }
-    }
-    return true;
-}
+//bool ElementPipelineSchedule::CheckNormalPrepared(int AG_index_in_total)
+//{
+//    int produced_output_channel_num = AG_produce_output_channel_num[AG_index_in_total];
+//    int key_input_channel_index = AG_key_input_channel_index[AG_index_in_total][produced_output_channel_num];
+//    int start = AG_min_max_input_channel_index[AG_index_in_total][0];
+//    for (int i = start; i <= key_input_channel_index; ++i)
+//    {
+//        if (AG_ready_input_channel_list[AG_index_in_total][i] != 1)
+//        {
+//            return false;
+//        }
+//    }
+//    return true;
+//}
 
+//bool ElementPipelineSchedule::CheckPoolRepPrepared(int node_index,int replication_index, int pool_key_input_channel_index_current)
+//{
+//    int start = pool_rep_min_max_input_channel_index[node_index][replication_index][0];
+//    for (int i = start; i <= pool_key_input_channel_index_current; ++i)
+//    {
+//        if (pool_rep_ready_input_channel_list[node_index][replication_index][i] != 1)
+//            return false;
+//    }
+//    return true;
+//}
 
 bool ElementPipelineSchedule::NewCheckNormalPrepared(int AG_index_in_total)
 {
     int produced_output_channel_num = AG_produce_output_channel_num[AG_index_in_total];
+    if (AG_key_input_channel_index[AG_index_in_total].size() == 0)
+        return false;
     int key_input_channel_index = AG_key_input_channel_index[AG_index_in_total][produced_output_channel_num];
     int needed_start_index = AG_min_max_input_channel_index[AG_index_in_total][0];
     int needed_end_index = key_input_channel_index + 1;
@@ -372,7 +472,9 @@ bool ElementPipelineSchedule::NewCheckNormalPrepared(int AG_index_in_total)
         else
         {
             if (needed_end_index <= this_rep_ready_end_input_channel_index)
+            {
                 return true;
+            }
             else
             {
                 needed_start_index = this_rep_ready_end_input_channel_index;
@@ -383,18 +485,7 @@ bool ElementPipelineSchedule::NewCheckNormalPrepared(int AG_index_in_total)
 }
 
 
-bool ElementPipelineSchedule::CheckPoolRepPrepared(int node_index,int replication_index, int pool_key_input_channel_index_current)
-{
-    int start = pool_rep_min_max_input_channel_index[node_index][replication_index][0];
-    for (int i = start; i <= pool_key_input_channel_index_current; ++i)
-    {
-        if (pool_rep_ready_input_channel_list[node_index][replication_index][i] != 1)
-            return false;
-    }
-    return true;
-}
-
-bool ElementPipelineSchedule::NewCheckPoolRepPrepared(int node_index,int replication_index, int pool_key_input_channel_index_current)
+bool ElementPipelineSchedule::NewCheckPoolRepPrepared(int node_index, int replication_index, int pool_key_input_channel_index_current)
 {
     int needed_start_index = pool_rep_min_max_input_channel_index[node_index][replication_index][0];
     int needed_end_index = pool_key_input_channel_index_current + 1;
@@ -404,8 +495,11 @@ bool ElementPipelineSchedule::NewCheckPoolRepPrepared(int node_index,int replica
         int this_rep_ready_start_input_channel_index = iter->second.start_input_channel_index;
         int this_rep_ready_input_channel_num = iter->second.ready_input_channel_num;
         int this_rep_ready_end_input_channel_index = this_rep_ready_start_input_channel_index + this_rep_ready_input_channel_num;
-
-        if (needed_start_index < this_rep_ready_start_input_channel_index)
+//        if (node_index == 121)
+//        {
+//            std::cout << iter->first << "  " << this_rep_ready_start_input_channel_index << "  " << this_rep_ready_end_input_channel_index << std::endl;
+//        }
+            if (needed_start_index < this_rep_ready_start_input_channel_index)
             return false;
         else
         {
@@ -417,12 +511,194 @@ bool ElementPipelineSchedule::NewCheckPoolRepPrepared(int node_index,int replica
             }
         }
     }
+//    if (node_index == 121)
+//    {
+//        std::cout << std::endl;
+//    }
     return false;
 }
 
 
-std::vector<int> NodeCheck;
-void ElementPipelineSchedule::ScheduleNaiveAbstract(std::ofstream & OutFile,int instruction_group_index)
+bool ElementPipelineSchedule::NewCheckVecPrepared(int node_index, int replication_index, int vec_rep_key_input_channel_index_current)
+{
+    int provider_num = PIMCOM_4_topology_consumer_provider_relation[node_index].size();
+    for (int i = 0; i < provider_num; ++i)
+    {
+        int provider_index = PIMCOM_4_topology_consumer_provider_relation[node_index][i];
+        int index_in_all_providers = node_provider_index_2_index_in_all_providers[node_index][provider_index];
+        if (vec_rep_prov_ready_input_channel_list[node_index][replication_index][index_in_all_providers][vec_rep_key_input_channel_index_current] == 0)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+std::vector<std::set<int>> NodeCheck;
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////// Dataflow (Abstract) /////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void ElementPipelineSchedule::ScheduleNaiveDataflowPost(std::ofstream & OutFile, int instruction_group_index, int this_node_index, int next_node_index, int input_channel_index, int complete_replication_index, bool effective_post)
+{
+    std::string next_operation = PIMCOM_node_list[next_node_index].operation;
+    if (next_operation == "OP_POOL")
+    {
+        int replication_num = node_replication_num[next_node_index];
+        for (int k = 0; k < replication_num; ++k)
+        {
+            int pool_rep_produced_output_channel_num = pool_rep_produce_output_channel_num[next_node_index][k];
+            if ( (pool_rep_produced_output_channel_num < (pool_rep_min_max_output_channel_index[next_node_index][k][1] - pool_rep_min_max_output_channel_index[next_node_index][k][0] + 1)))
+            {
+                //// 传输(传递给其他rep，因为池化是分在各个rep处理的)
+                if(pool_rep_min_max_input_channel_index[next_node_index][k][0] <= input_channel_index &&
+                   pool_rep_min_max_input_channel_index[next_node_index][k][1] >= input_channel_index &&
+                   pool_rep_ready_input_channel_list[next_node_index][k][input_channel_index] == 0)
+                {
+                    pool_rep_ready_input_channel_list[next_node_index][k][input_channel_index] = 1; //// 这里的设置和以前的作用不同。详情见10-16笔记。是个比较复杂的问题。
+                    if (pool_rep_new_ready_input_channel_list[next_node_index][k].count(complete_replication_index) == 0)
+                    {
+                        pool_rep_new_ready_input_channel_list[next_node_index][k][complete_replication_index].start_input_channel_index = input_channel_index;
+                        pool_rep_new_ready_input_channel_list[next_node_index][k][complete_replication_index].ready_input_channel_num = 1;
+                    }
+                    else
+                    {
+                        pool_rep_new_ready_input_channel_list[next_node_index][k][complete_replication_index].ready_input_channel_num += 1;
+                    }
+                }
+                //// 再进行池化操作
+                int pool_rep_key_input_channel_index_current = pool_rep_key_input_channel_index[next_node_index][k][pool_rep_produced_output_channel_num];
+                if (NewCheckPoolRepPrepared(next_node_index, k, pool_rep_key_input_channel_index_current))
+                {
+                    OutFile << std::endl;
+                    OutFile << "    POOL Begin!" << std::endl;
+                    OutFile << "    node_index:" << next_node_index  << std::endl;
+                    OutFile << "    replication_index:" << k << std::endl;
+                    OutFile << "    pool_rep_produced_output_channel_index:" << pool_rep_produced_output_channel_num << std::endl;
+                    OutFile << "    pool_rep_key_input_channel_index_current:" << pool_rep_key_input_channel_index_current << std::endl; // 新增的字段
+                    OutFile << "    input_channel_index:" << input_channel_index << std::endl;
+                    OutFile << "    POOL End!" << std::endl;
+                    pool_rep_produce_output_channel_num[next_node_index][k]++;
+
+                    int input_channel_index_for_next = pool_rep_produced_output_channel_num + pool_rep_min_max_output_channel_index[next_node_index][k][0];
+                    NodeCheck[next_node_index].insert(input_channel_index_for_next);
+                    //// 考虑多个消费者
+                    for (auto iter = PIMCOM_4_topology_provider_consumer_relation[next_node_index].begin(); iter != PIMCOM_4_topology_provider_consumer_relation[next_node_index].end() ; ++iter)
+                    {
+                        int next_next_node_index = *iter;
+                        ScheduleNaiveDataflowPost(OutFile, instruction_group_index, next_node_index, next_next_node_index, input_channel_index_for_next, k, 1);
+                    }
+                }
+            }
+            else //// 同样是笔记10-16的问题，有可能后续操作还没有完成，所以必须重复进入循环
+            {
+                //// 这里又是需要注意的！！对于类似resnet 58这种output尺寸为1*1，所以有的rep根本没任务，那它就不用进入下面的操作。
+                if (pool_rep_min_max_output_channel_index[next_node_index][k][1] >= pool_rep_min_max_output_channel_index[next_node_index][k][0])
+                {
+                    int input_channel_index_for_next = pool_rep_produced_output_channel_num + pool_rep_min_max_output_channel_index[next_node_index][k][0] - 1;
+                    for (auto iter = PIMCOM_4_topology_provider_consumer_relation[next_node_index].begin(); iter != PIMCOM_4_topology_provider_consumer_relation[next_node_index].end() ; ++iter)
+                    {
+                        int next_next_node_index = *iter;
+                        ScheduleNaiveDataflowPost(OutFile, instruction_group_index, next_node_index, next_next_node_index, input_channel_index_for_next, k, 0);
+                    }
+                }
+            }
+        }
+    }
+    else if (next_operation == "OP_ELTWISE" || next_operation == "OP_CONCAT" || next_operation == "OP_RELU" || next_operation == "OP_TANH" || next_operation == "OP_SIGMOID")
+    {
+        int replication_num = node_replication_num[next_node_index];
+        int index_in_all_providers = node_provider_index_2_index_in_all_providers[next_node_index][this_node_index];
+        for (int k = 0; k < replication_num; ++k)
+        {
+            int vec_rep_produced_output_channel_num = vec_rep_produce_output_channel_num[next_node_index][k];
+            if (vec_rep_produced_output_channel_num < (vec_rep_min_max_channel_index[next_node_index][k][1] - vec_rep_min_max_channel_index[next_node_index][k][0] + 1))
+            {
+                //// 传输(传递给其他rep，因为需要分在各个rep处理的)
+                if(vec_rep_min_max_channel_index[next_node_index][k][0] <= input_channel_index &&
+                   vec_rep_min_max_channel_index[next_node_index][k][1] >= input_channel_index &&
+                   vec_rep_prov_ready_input_channel_list[next_node_index][k][index_in_all_providers][input_channel_index] == 0)
+                {
+                    vec_rep_prov_ready_input_channel_list[next_node_index][k][index_in_all_providers][input_channel_index] = 1;
+                }
+                //// 再进行VEC操作
+                int vec_rep_key_input_channel_index_current = vec_rep_produced_output_channel_num + vec_rep_min_max_channel_index[next_node_index][k][0];
+                if (NewCheckVecPrepared(next_node_index, k, vec_rep_key_input_channel_index_current))
+                {
+                    OutFile << std::endl;
+                    OutFile << "    " << next_operation << " Begin!" << std::endl;
+                    OutFile << "    node_index:" << next_node_index  << std::endl;
+                    OutFile << "    replication_index:" << k << std::endl;
+                    OutFile << "    rep_produced_output_channel_index:" << vec_rep_produced_output_channel_num << std::endl;
+                    OutFile << "    input_channel_index:" << input_channel_index << std::endl;
+
+                    vec_rep_produce_output_channel_num[next_node_index][k]++;
+//
+                    int input_channel_index_for_next = vec_rep_produced_output_channel_num + vec_rep_min_max_channel_index[next_node_index][k][0];
+                    NodeCheck[next_node_index].insert(input_channel_index_for_next);
+                    //// 考虑多个消费者
+                    for (auto iter = PIMCOM_4_topology_provider_consumer_relation[next_node_index].begin(); iter != PIMCOM_4_topology_provider_consumer_relation[next_node_index].end() ; ++iter)
+                    {
+                        int next_next_node_index = *iter;
+                        ScheduleNaiveDataflowPost(OutFile, instruction_group_index, next_node_index, next_next_node_index, input_channel_index_for_next, k, 1);
+                    }
+                }
+            }
+            else //// 同样是笔记10-16的问题，有可能后续操作还没有完成，所以必须重复进入循环
+            {
+                if (vec_rep_min_max_channel_index[next_node_index][k][1] >= vec_rep_min_max_channel_index[next_node_index][k][0])
+                {
+                    int input_channel_index_for_next = vec_rep_produced_output_channel_num + vec_rep_min_max_channel_index[next_node_index][k][0] - 1;
+                    for (auto iter = PIMCOM_4_topology_provider_consumer_relation[next_node_index].begin(); iter != PIMCOM_4_topology_provider_consumer_relation[next_node_index].end() ; ++iter)
+                    {
+                        int next_next_node_index = *iter;
+                        ScheduleNaiveDataflowPost(OutFile, instruction_group_index, next_node_index, next_next_node_index, input_channel_index_for_next, k, 0);
+                    }
+                }
+            }
+        }
+    }
+    else if (next_operation == "OP_FLATTEN" || next_operation == "OP_RESHAPE" || next_operation == "OP_DROPOUT" || next_operation == "OP_LRN")
+    {
+        for (auto iter = PIMCOM_4_topology_provider_consumer_relation[next_node_index].begin(); iter != PIMCOM_4_topology_provider_consumer_relation[next_node_index].end() ; ++iter)
+        {
+            int next_next_node_index = *iter;
+            ScheduleNaiveDataflowPost(OutFile, instruction_group_index, next_node_index, next_next_node_index, input_channel_index, complete_replication_index, effective_post);
+        }
+    }
+    else if (next_operation == "OP_CONV" || next_operation == "OP_FC")
+    {
+        if (effective_post)
+        {
+            int related_AG_num = input_channel_related_AG_index[next_node_index][input_channel_index].size();
+            for (int k = 0; k < related_AG_num; ++k)
+            {
+                int related_AG_index = input_channel_related_AG_index[next_node_index][input_channel_index][k];
+                if (AG_ready_input_channel_list[related_AG_index][input_channel_index] != 1)
+                {
+                    AG_ready_input_channel_list[related_AG_index][input_channel_index] = 1;
+                    if (AG_new_ready_input_channel_list[related_AG_index].count(complete_replication_index) == 0)
+                    {
+                        AG_new_ready_input_channel_list[related_AG_index][complete_replication_index].start_input_channel_index = input_channel_index;
+                        AG_new_ready_input_channel_list[related_AG_index][complete_replication_index].ready_input_channel_num = 1;
+                    }
+                    else
+                    {
+                        AG_new_ready_input_channel_list[related_AG_index][complete_replication_index].ready_input_channel_num += 1;
+                    }
+                }
+            }
+        }
+    }
+    else
+    {
+//        std::cout << next_node_index << " " << next_operation << std::endl;
+    }
+}
+
+
+void ElementPipelineSchedule::ScheduleNaiveDataflowMain(std::ofstream & OutFile,int instruction_group_index)
 {
     OutFile << instruction_group_index << std::endl;
     int AG_num = PIMCOM_2_resource_info.AGs;
@@ -433,107 +709,229 @@ void ElementPipelineSchedule::ScheduleNaiveAbstract(std::ofstream & OutFile,int 
             continue;
         struct AG_info_schedule thisAG = PIMCOM_4_element_AG_info_list[i];
         int AG_index_in_total = thisAG.AG_index_in_total;
-        int replication_index = thisAG.replication_index;
         int input_cycle_this_replication_start = thisAG.input_cycle_this_replication_start;
         int node_index = thisAG.node_index;
-        int replication_num = thisAG.replication_num;
         bool first_layer = thisAG.first_layer;
-
-        //// 只需要考虑AG_index_in_replication==0的情况
-        if (  ( first_layer && AG_rest_output_channel_num[AG_index_in_total] > 0) ||
-              ( AG_rest_output_channel_num[AG_index_in_total] > 0 && NewCheckNormalPrepared(AG_index_in_total) ) )
+        int replication_index = thisAG.replication_index;
+        NewCheckNormalPrepared(AG_index_in_total);
+        //// 只需要考虑 AG_index_in_replication==0 的情况
+        if ( first_layer ||  NewCheckNormalPrepared(AG_index_in_total) )
         {
-            int output_channel_index = input_cycle_this_replication_start + AG_produce_output_channel_num[AG_index_in_total];
-            int consumer_index = *PIMCOM_4_provider_consumer_relation_with_pool[node_index].begin(); // TODO 目前只考虑VGG，只有一个消费者
-
-//            OutFile << std::endl;
-//            OutFile << "    Normal Begin!" << std::endl;
-//            OutFile << "    node_index:" << node_index  << std::endl;
-//            OutFile << "    output_index:" << output_channel_index << std::endl;
-//            OutFile << "    Normal End" << std::endl << std::endl;
-            NodeCheck[node_index]++;
-
-            if (PIMCOM_node_list[consumer_index].operation == "OP_POOL")
+            int consumer_index = *PIMCOM_4_topology_provider_consumer_relation[node_index].begin(); //// 一般情况CONV或FC都只有一个消费者
+            //// 把"AG_rest_output_channel_num[AG_index_in_total] > 0"的判断设置在这里是因为当有的层结束后，后面还依赖于该层进入POST操作
+            if (AG_rest_output_channel_num[AG_index_in_total] > 0)
             {
-                for (int k = 0; k < replication_num; ++k)
-                {
-                    int pool_rep_produced_output_channel_num = pool_rep_produce_output_channel_num[consumer_index][k];
-                    if (pool_rep_produced_output_channel_num >= (pool_rep_min_max_output_channel_index[consumer_index][k][1] - pool_rep_min_max_output_channel_index[consumer_index][k][0] + 1))
-                        continue;
-                    // 传输(传递个其他rep，因为池化是分在各个rep处理的)
-                    if(pool_rep_min_max_input_channel_index[consumer_index][k][0] <= output_channel_index &&
-                       pool_rep_min_max_input_channel_index[consumer_index][k][1] >= output_channel_index)
-                    {
-//                        pool_rep_ready_input_channel_list[consumer_index][k][output_channel_index] = 1; // k就是需要的核
-                        if (pool_rep_new_ready_input_channel_list[consumer_index][k].count(replication_index) == 0)
-                        {
-                            pool_rep_new_ready_input_channel_list[consumer_index][k][replication_index].start_input_channel_index = output_channel_index;
-                            pool_rep_new_ready_input_channel_list[consumer_index][k][replication_index].ready_input_channel_num = 1;
-                        }
-                        else
-                        {
-                            pool_rep_new_ready_input_channel_list[consumer_index][k][replication_index].ready_input_channel_num += 1;
-                        }
-                    }
-                    // 再进行池化操作
-                    int pool_rep_key_input_channel_index_current = pool_rep_key_input_channel_index[consumer_index][k][pool_rep_produced_output_channel_num];
-                    if (NewCheckPoolRepPrepared(consumer_index, k, pool_rep_key_input_channel_index_current))
-                    {
-//                        OutFile << std::endl;
-//                        OutFile << "    POOL Begin!" << std::endl;
-//                        OutFile << "    node_index:" << consumer_index  << std::endl;
-//                        OutFile << "    replication_index:" << k << std::endl;
-//                        OutFile << "    pool_rep_produced_output_channel_index:" << pool_rep_produced_output_channel_num << std::endl;
-//                        OutFile << "    input_channel_index:" << output_channel_index << std::endl;
+                int output_channel_index = input_cycle_this_replication_start + AG_produce_output_channel_num[AG_index_in_total];
+                int produced_output_channel_num = AG_produce_output_channel_num[AG_index_in_total];
+                int key_input_channel_index = AG_key_input_channel_index[AG_index_in_total][produced_output_channel_num];
 
-                        int consumer_consumer_index = *PIMCOM_4_provider_consumer_relation_with_pool[consumer_index].begin();// TODO 目前只考虑VGG，只有一个消费者
-                        int input_channel_index_for_next = pool_rep_produced_output_channel_num + pool_rep_min_max_output_channel_index[consumer_index][k][0];
-                        int related_AG_num = input_channel_related_AG_index[consumer_consumer_index][input_channel_index_for_next].size();
-                        for (int l = 0; l < related_AG_num; ++l)
-                        {
-                            int related_AG_index = input_channel_related_AG_index[consumer_consumer_index][input_channel_index_for_next][l];
-//                            AG_ready_input_channel_list[related_AG_index][input_channel_index_for_next] = 1;
-                            if (AG_new_ready_input_channel_list[related_AG_index].count(replication_index) == 0)
-                            {
-                                AG_new_ready_input_channel_list[related_AG_index][replication_index].start_input_channel_index = input_channel_index_for_next;
-                                AG_new_ready_input_channel_list[related_AG_index][replication_index].ready_input_channel_num = 1;
-                            }
-                            else
-                            {
-                                AG_new_ready_input_channel_list[related_AG_index][replication_index].ready_input_channel_num += 1;
-                            }
-                        }
-                        pool_rep_produce_output_channel_num[consumer_index][k]++;
-//                        OutFile << "    POOL End!" << std::endl;
-                    }
-                }
+                OutFile << std::endl;
+                OutFile << "    Normal Begin!" << std::endl;
+                OutFile << "    node_index:" << node_index  << std::endl;
+                OutFile << "    output_index:" << output_channel_index << std::endl;
+                OutFile << "    Normal End" << std::endl << std::endl;
+
+                NodeCheck[node_index].insert(output_channel_index);
+                AG_rest_output_channel_num[AG_index_in_total] -= 1;
+                AG_produce_output_channel_num[AG_index_in_total] += 1;
+                ScheduleNaiveDataflowPost(OutFile, instruction_group_index, node_index, consumer_index, output_channel_index, replication_index, 1);
             }
-            else if ( (PIMCOM_node_list[consumer_index].operation == "OP_CONV" || PIMCOM_node_list[consumer_index].operation == "OP_FC"))
+            else
             {
-                int related_AG_num = input_channel_related_AG_index[consumer_index][output_channel_index].size();
-                for (int k = 0; k < related_AG_num; ++k)
-                {
-                    int related_AG_index = input_channel_related_AG_index[consumer_index][output_channel_index][k];
-//                    AG_ready_input_channel_list[related_AG_index][output_channel_index] = 1; // 该层的输出通道index即下一层输入通道index
-                    if (AG_new_ready_input_channel_list[related_AG_index].count(replication_index) == 0)
-                    {
-                        AG_new_ready_input_channel_list[related_AG_index][replication_index].start_input_channel_index = output_channel_index;
-                        AG_new_ready_input_channel_list[related_AG_index][replication_index].ready_input_channel_num = 1;
-                    }
-                    else
-                    {
-                        AG_new_ready_input_channel_list[related_AG_index][replication_index].ready_input_channel_num += 1;
-                    }
-                }
+                // TODO 这里有一点要注意：最后一个节点（consumer_num==0）的consumer设置为0，也就是会回到0，但是此时0肯定已经完成了。所以最终能顺利结束。
+                int output_channel_index = input_cycle_this_replication_start + AG_produce_output_channel_num[AG_index_in_total] - 1; //// 已经算完的CONV-REP的output_channel_index，一直以最后一个output_channel_index进入后续处理
+                ScheduleNaiveDataflowPost(OutFile, instruction_group_index, node_index, consumer_index, output_channel_index, replication_index, 0);
             }
-            AG_rest_output_channel_num[AG_index_in_total] -= 1;
-            AG_produce_output_channel_num[AG_index_in_total] += 1;
         }
     }
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////// Instruction (Detail) ////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void ElementPipelineSchedule::ScheduleNaiveMain(int instruction_group_index)
+void ElementPipelineSchedule::ScheduleNaiveInstructionPost(int instruction_group_index, int this_node_index, int next_node_index, int input_channel_index, int complete_replication_index, bool append_instruction)
+{
+    std::string next_operation = PIMCOM_node_list[next_node_index].operation;
+    if (next_operation == "OP_POOL")
+    {
+        int replication_num = node_replication_num[next_node_index];
+        for (int k = 0; k < replication_num; ++k)
+        {
+            int pool_rep_produced_output_channel_num = pool_rep_produce_output_channel_num[next_node_index][k];
+            if ( (pool_rep_produced_output_channel_num < (pool_rep_min_max_output_channel_index[next_node_index][k][1] - pool_rep_min_max_output_channel_index[next_node_index][k][0] + 1)))
+            {
+                //// 传输(传递给其他rep，因为池化是分在各个rep处理的)
+                if(pool_rep_min_max_input_channel_index[next_node_index][k][0] <= input_channel_index &&
+                   pool_rep_min_max_input_channel_index[next_node_index][k][1] >= input_channel_index &&
+                   pool_rep_ready_input_channel_list[next_node_index][k][input_channel_index] == 0)
+                {
+                    pool_rep_ready_input_channel_list[next_node_index][k][input_channel_index] = 1; //// 这里的设置和以前的作用不同。详情见10-16笔记。是个比较复杂的问题。
+                    if (pool_rep_new_ready_input_channel_list[next_node_index][k].count(complete_replication_index) == 0)
+                    {
+                        pool_rep_new_ready_input_channel_list[next_node_index][k][complete_replication_index].start_input_channel_index = input_channel_index;
+                        pool_rep_new_ready_input_channel_list[next_node_index][k][complete_replication_index].ready_input_channel_num = 1;
+                    }
+                    else
+                    {
+                        pool_rep_new_ready_input_channel_list[next_node_index][k][complete_replication_index].ready_input_channel_num += 1;
+                    }
+
+                    //// 从AG_index_in_total到related_AG_index的数据传递
+                    int effective_provider_node_index = PIMCOM_node_list[next_node_index].AG0_node_index;
+                    int recv_AG_index = node_AG0_index_in_replication[effective_provider_node_index][k];
+                    int send_AG_index = node_AG0_index_in_replication[effective_provider_node_index][complete_replication_index];
+                    ScheduleNaiveInstructionCOMM(instruction_group_index, send_AG_index, recv_AG_index);
+                }
+                //// 再进行池化操作
+                int pool_rep_key_input_channel_index_current = pool_rep_key_input_channel_index[next_node_index][k][pool_rep_produced_output_channel_num];
+                if (NewCheckPoolRepPrepared(next_node_index, k, pool_rep_key_input_channel_index_current))
+                {
+                    //// 计算这是整个pool层的第多少个输出
+                    int input_channel_index_for_next = pool_rep_produced_output_channel_num + pool_rep_min_max_output_channel_index[next_node_index][k][0];
+                    //// 进行池化操作
+                    int effective_provider_node_index = PIMCOM_node_list[next_node_index].AG0_node_index;
+                    int execution_AG_index = node_AG0_index_in_replication[effective_provider_node_index][k];
+//                    ScheduleNaiveInstructionStage4Pool(instruction_group_index, next_node_index, execution_AG_index, input_channel_index_for_next);
+
+                    NodeCheck[next_node_index].insert(input_channel_index_for_next);
+                    pool_rep_produce_output_channel_num[next_node_index][k]++;
+
+                    //// 把池化结果向后续传递，考虑多个消费者
+                    for (auto iter = PIMCOM_4_topology_provider_consumer_relation[next_node_index].begin(); iter != PIMCOM_4_topology_provider_consumer_relation[next_node_index].end() ; ++iter)
+                    {
+                        int next_next_node_index = *iter;
+                        ScheduleNaiveInstructionPost( instruction_group_index, next_node_index, next_next_node_index, input_channel_index_for_next, k, 1);
+                    }
+                }
+            }
+            else //// 同样是笔记10-16的问题，有可能后续操作还没有完成，所以必须重复进入循环
+            {
+                //// 这里又是需要注意的！！对于类似resnet 58这种output尺寸为1*1，所以有的rep根本没任务，那它就不用进入下面的操作。
+                if (pool_rep_min_max_output_channel_index[next_node_index][k][1] >= pool_rep_min_max_output_channel_index[next_node_index][k][0])
+                {
+                    int input_channel_index_for_next = pool_rep_produced_output_channel_num + pool_rep_min_max_output_channel_index[next_node_index][k][0] - 1;
+                    for (auto iter = PIMCOM_4_topology_provider_consumer_relation[next_node_index].begin(); iter != PIMCOM_4_topology_provider_consumer_relation[next_node_index].end() ; ++iter)
+                    {
+                        int next_next_node_index = *iter;
+                        ScheduleNaiveInstructionPost(instruction_group_index, next_node_index, next_next_node_index, input_channel_index_for_next, k, 0);
+                    }
+                }
+            }
+        }
+    }
+    else if (next_operation == "OP_ELTWISE" || next_operation == "OP_CONCAT" || next_operation == "OP_RELU" || next_operation == "OP_TANH" || next_operation == "OP_SIGMOID")
+    {
+        int replication_num = node_replication_num[next_node_index];
+        int index_in_all_providers = node_provider_index_2_index_in_all_providers[next_node_index][this_node_index];
+        for (int k = 0; k < replication_num; ++k)
+        {
+            int vec_rep_produced_output_channel_num = vec_rep_produce_output_channel_num[next_node_index][k];
+            if (vec_rep_produced_output_channel_num < (vec_rep_min_max_channel_index[next_node_index][k][1] - vec_rep_min_max_channel_index[next_node_index][k][0] + 1))
+            {
+                //// 传输(传递给其他rep，因为需要分在各个rep处理的)
+                if(vec_rep_min_max_channel_index[next_node_index][k][0] <= input_channel_index &&
+                   vec_rep_min_max_channel_index[next_node_index][k][1] >= input_channel_index &&
+                   vec_rep_prov_ready_input_channel_list[next_node_index][k][index_in_all_providers][input_channel_index] == 0)
+                {
+                    vec_rep_prov_ready_input_channel_list[next_node_index][k][index_in_all_providers][input_channel_index] = 1;
+                    //// next_node_index的this_node_index的生产者是在第complete_replication_index个rep上产生的第input_channel_index个输入通道。是这么一个意思。这个结构是为了后续生成指令的地址（rep中AG0的序号）
+                    vec_prov_rep_index[next_node_index][index_in_all_providers][input_channel_index] = complete_replication_index;
+
+                    //// 从AG_index_in_total到related_AG_index的数据传递
+                    int effective_provider_node_index = PIMCOM_node_list[next_node_index].AG0_node_index;
+                    int recv_AG_index = node_AG0_index_in_replication[effective_provider_node_index][k];
+                    int send_AG_index = node_AG0_index_in_replication[effective_provider_node_index][complete_replication_index];
+                    ScheduleNaiveInstructionCOMM(instruction_group_index, send_AG_index, recv_AG_index);
+                }
+                //// 再进行VEC操作
+                int vec_rep_key_input_channel_index_current = vec_rep_produced_output_channel_num + vec_rep_min_max_channel_index[next_node_index][k][0];
+                if (NewCheckVecPrepared(next_node_index, k, vec_rep_key_input_channel_index_current))
+                {
+                    int execution_AG_index = node_AG0_index_in_replication[PIMCOM_node_list[next_node_index].AG0_node_index][k];
+                    int input_channel_index_for_next = vec_rep_produced_output_channel_num + vec_rep_min_max_channel_index[next_node_index][k][0];
+
+                    if (next_operation == "OP_ELTWISE")
+                    {
+                        ScheduleNaiveInstructionStage4Eltwise(instruction_group_index, next_node_index, execution_AG_index, input_channel_index_for_next);
+                    }
+                    else if (next_operation == "OP_CONCAT")
+                    {
+                        ScheduleNaiveInstructionStage4Concat(instruction_group_index, next_node_index, execution_AG_index, input_channel_index_for_next);
+                    }
+                    else if(next_operation == "OP_RELU" || next_operation == "OP_TANH" || next_operation == "OP_SIGMOID")
+                    {
+                        ScheduleNaiveInstructionStage4Activate(instruction_group_index, next_node_index, execution_AG_index, input_channel_index_for_next);
+                    }
+
+                    vec_rep_produce_output_channel_num[next_node_index][k]++;
+                    NodeCheck[next_node_index].insert(input_channel_index_for_next);
+                    //// 考虑多个消费者
+                    for (auto iter = PIMCOM_4_topology_provider_consumer_relation[next_node_index].begin(); iter != PIMCOM_4_topology_provider_consumer_relation[next_node_index].end() ; ++iter)
+                    {
+                        int next_next_node_index = *iter;
+                        ScheduleNaiveInstructionPost(instruction_group_index, next_node_index, next_next_node_index, input_channel_index_for_next, k, 1);
+                    }
+                }
+            }
+            else //// 同样是笔记10-16的问题，有可能后续操作还没有完成，所以必须重复进入循环
+            {
+                if (vec_rep_min_max_channel_index[next_node_index][k][1] >= vec_rep_min_max_channel_index[next_node_index][k][0])
+                {
+                    int input_channel_index_for_next = vec_rep_produced_output_channel_num + vec_rep_min_max_channel_index[next_node_index][k][0] - 1;
+                    for (auto iter = PIMCOM_4_topology_provider_consumer_relation[next_node_index].begin(); iter != PIMCOM_4_topology_provider_consumer_relation[next_node_index].end() ; ++iter)
+                    {
+                        int next_next_node_index = *iter;
+                        ScheduleNaiveInstructionPost(instruction_group_index, next_node_index, next_next_node_index, input_channel_index_for_next, k, 0);
+                    }
+                }
+            }
+        }
+    }
+    else if (next_operation == "OP_FLATTEN" || next_operation == "OP_RESHAPE" || next_operation == "OP_DROPOUT" || next_operation == "OP_LRN")
+    {
+        for (auto iter = PIMCOM_4_topology_provider_consumer_relation[next_node_index].begin(); iter != PIMCOM_4_topology_provider_consumer_relation[next_node_index].end() ; ++iter)
+        {
+            int next_next_node_index = *iter;
+            ScheduleNaiveInstructionPost(instruction_group_index, next_node_index, next_next_node_index, input_channel_index, complete_replication_index, append_instruction);
+        }
+    }
+    else if (next_operation == "OP_CONV" || next_operation == "OP_FC")
+    {
+        if (append_instruction)
+        {
+            int related_AG_num = input_channel_related_AG_index[next_node_index][input_channel_index].size();
+            for (int k = 0; k < related_AG_num; ++k)
+            {
+                int related_AG_index = input_channel_related_AG_index[next_node_index][input_channel_index][k];
+                if (AG_ready_input_channel_list[related_AG_index][input_channel_index] != 1)
+                {
+                    AG_ready_input_channel_list[related_AG_index][input_channel_index] = 1;
+                    if (AG_new_ready_input_channel_list[related_AG_index].count(complete_replication_index) == 0)
+                    {
+                        AG_new_ready_input_channel_list[related_AG_index][complete_replication_index].start_input_channel_index = input_channel_index;
+                        AG_new_ready_input_channel_list[related_AG_index][complete_replication_index].ready_input_channel_num = 1;
+                    }
+                    else
+                    {
+                        AG_new_ready_input_channel_list[related_AG_index][complete_replication_index].ready_input_channel_num += 1;
+                    }
+                }
+                //// 传递给后续层
+                int send_AG_index = node_AG0_index_in_replication[next_node_index][complete_replication_index];
+                ScheduleNaiveInstructionCOMM(instruction_group_index, send_AG_index, related_AG_index);
+            }
+        }
+    }
+    else
+    {
+//        std::cout << next_node_index << " " << next_operation << std::endl;
+    }
+}
+
+
+
+void ElementPipelineSchedule::ScheduleNaiveInstructionMain(int instruction_group_index)
 {
     int AG_num = PIMCOM_2_resource_info.AGs;
     for (int i = 0; i < AG_num; ++i)
@@ -543,116 +941,48 @@ void ElementPipelineSchedule::ScheduleNaiveMain(int instruction_group_index)
             continue;
         struct AG_info_schedule thisAG = PIMCOM_4_element_AG_info_list[i];
         int AG_index_in_total = thisAG.AG_index_in_total;
-        int replication_index = thisAG.replication_index;
         int input_cycle_this_replication_start = thisAG.input_cycle_this_replication_start;
         int node_index = thisAG.node_index;
-        int replication_num = thisAG.replication_num;
         int AG_num_this_replication = thisAG.AG_num_per_replication;
         bool first_layer = thisAG.first_layer;
+        int replication_index = thisAG.replication_index;
 
-        //// 只需要考虑AG_index_in_replication==0的情况
-        if (  ( first_layer && AG_rest_output_channel_num[AG_index_in_total] > 0) ||
-              ( AG_rest_output_channel_num[AG_index_in_total] > 0 && NewCheckNormalPrepared(AG_index_in_total) ) )
+        //// 只需要考虑 AG_index_in_replication==0 的情况
+        if ( first_layer ||  NewCheckNormalPrepared(AG_index_in_total) )
         {
-            int output_channel_index = input_cycle_this_replication_start + AG_produce_output_channel_num[AG_index_in_total];
-
-            ////////////////////////////////////// Stage1、Stage2、Stage3 And ACT //////////////////////////////////////
-            ScheduleNaiveStage1(instruction_group_index, AG_index_in_total, AG_num_this_replication, output_channel_index);
-
-            ScheduleNaiveStage2(instruction_group_index, AG_index_in_total, AG_num_this_replication);
-
-            ScheduleNaiveStage3(instruction_group_index, AG_index_in_total, AG_num_this_replication);
-
-            ScheduleNaiveStageACT(instruction_group_index, AG_index_in_total);
-            ////////////////////////////////////////////////// Stage4 //////////////////////////////////////////////////
-            int consumer_index = *PIMCOM_4_provider_consumer_relation_with_pool[node_index].begin(); // TODO 目前只考虑VGG，只有一个消费者
-            NodeCheck[node_index]++;
-            if (PIMCOM_node_list[consumer_index].operation == "OP_POOL")
+            int consumer_index = *PIMCOM_4_topology_provider_consumer_relation[node_index].begin(); //// 一般情况CONV或FC都只有一个消费者
+            //// 把"AG_rest_output_channel_num[AG_index_in_total] > 0"的判断设置在这里是因为当有的层结束后，后面还依赖于该层进入POST操作
+            if (AG_rest_output_channel_num[AG_index_in_total] > 0)
             {
-                for (int k = 0; k < replication_num; ++k)
-                {
-                    int pool_rep_produced_output_channel_num = pool_rep_produce_output_channel_num[consumer_index][k];
-                    if (pool_rep_produced_output_channel_num >= (pool_rep_min_max_output_channel_index[consumer_index][k][1] - pool_rep_min_max_output_channel_index[consumer_index][k][0] + 1))
-                        continue;
-                    // 传输(传递个其他rep，因为池化是分在各个rep处理的，每个rep处理一部分，保存在min_max中)
-                    if(pool_rep_min_max_input_channel_index[consumer_index][k][0] <= output_channel_index &&
-                       pool_rep_min_max_input_channel_index[consumer_index][k][1] >= output_channel_index)
-                    {
-                        // pool_rep_ready_input_channel_list[consumer_index][k][output_channel_index] = 1; //已弃用,速度太慢
-                        if (pool_rep_new_ready_input_channel_list[consumer_index][k].count(replication_index) == 0)
-                        {
-                            // k就是需要的rep_index
-                            pool_rep_new_ready_input_channel_list[consumer_index][k][replication_index].start_input_channel_index = output_channel_index;
-                            pool_rep_new_ready_input_channel_list[consumer_index][k][replication_index].ready_input_channel_num = 1;
-                        }
-                        else
-                        {
-                            pool_rep_new_ready_input_channel_list[consumer_index][k][replication_index].ready_input_channel_num += 1;
-                        }
-                        //// 从AG_index_in_total到related_AG_index的数据传递
-                        int recv_AG_index = node_AG0_index_in_replication[node_index][k];
-                        ScheduleNaiveCOMM(instruction_group_index, AG_index_in_total, recv_AG_index);
-                    }
-                    // 再进行池化操作
-                    int pool_rep_key_input_channel_index_current = pool_rep_key_input_channel_index[consumer_index][k][pool_rep_produced_output_channel_num];
-                    if (NewCheckPoolRepPrepared(consumer_index, k, pool_rep_key_input_channel_index_current))
-                    {
-                        //// 计算这是整个pool层的第多少个输出
-                        int input_channel_index_for_next = pool_rep_produced_output_channel_num + pool_rep_min_max_output_channel_index[consumer_index][k][0];
-                        //// 进行池化操作
-                        int execution_AG_index = node_AG0_index_in_replication[node_index][k];
-//                        ScheduleNaiveStage4Pool(instruction_group_index, consumer_index, execution_AG_index, input_channel_index_for_next);
-                        //// 把池化结果向后续传递
-                        int consumer_consumer_index = *PIMCOM_4_provider_consumer_relation_with_pool[consumer_index].begin();// TODO 目前只考虑VGG，只有一个消费者
-                        int related_AG_num = input_channel_related_AG_index[consumer_consumer_index][input_channel_index_for_next].size();
-                        for (int l = 0; l < related_AG_num; ++l)
-                        {
-                            int related_AG_index = input_channel_related_AG_index[consumer_consumer_index][input_channel_index_for_next][l];
-                            // AG_ready_input_channel_list[related_AG_index][input_channel_index_for_next] = 1; //已弃用,速度太慢
-                            if (AG_new_ready_input_channel_list[related_AG_index].count(replication_index) == 0)
-                            {
-                                AG_new_ready_input_channel_list[related_AG_index][replication_index].start_input_channel_index = input_channel_index_for_next;
-                                AG_new_ready_input_channel_list[related_AG_index][replication_index].ready_input_channel_num = 1;
-                            }
-                            else
-                            {
-                                AG_new_ready_input_channel_list[related_AG_index][replication_index].ready_input_channel_num += 1;
-                            }
-                            int send_AG_index = node_AG0_index_in_replication[node_index][k];
-                            ScheduleNaiveCOMM(instruction_group_index, send_AG_index, related_AG_index);
-                        }
-                        pool_rep_produce_output_channel_num[consumer_index][k]++;
-                    }
-                }
+//                int produced_output_channel_num = AG_produce_output_channel_num[AG_index_in_total];
+//                int key_input_channel_index = AG_key_input_channel_index[AG_index_in_total][produced_output_channel_num];
+                int output_channel_index = input_cycle_this_replication_start + AG_produce_output_channel_num[AG_index_in_total];
+                ////////////////////////////////////// Stage1、Stage2、Stage3 And ACT //////////////////////////////////////
+                ScheduleNaiveInstructionStage1MVMUL(instruction_group_index, AG_index_in_total, AG_num_this_replication, output_channel_index);
+
+                ScheduleNaiveInstructionStage2VADD(instruction_group_index, AG_index_in_total, AG_num_this_replication);
+
+                ScheduleNaiveInstructionStage3ACC(instruction_group_index, AG_index_in_total, AG_num_this_replication);
+
+                ScheduleNaiveInstructionStage3ACT(instruction_group_index, AG_index_in_total);
+
+                NodeCheck[node_index].insert(output_channel_index);
+                AG_rest_output_channel_num[AG_index_in_total] -= 1;
+                AG_produce_output_channel_num[AG_index_in_total] += 1;
+
+                ScheduleNaiveInstructionPost(instruction_group_index, node_index, consumer_index, output_channel_index, replication_index, 1);
             }
-            else if ( (PIMCOM_node_list[consumer_index].operation == "OP_CONV" || PIMCOM_node_list[consumer_index].operation == "OP_FC"))
+            else
             {
-                int related_AG_num = input_channel_related_AG_index[consumer_index][output_channel_index].size();
-                for (int k = 0; k < related_AG_num; ++k)
-                {
-                    int related_AG_index = input_channel_related_AG_index[consumer_index][output_channel_index][k];
-//                    AG_ready_input_channel_list[related_AG_index][output_channel_index] = 1; // 该层的输出通道index即下一层输入通道index
-                    if (AG_new_ready_input_channel_list[related_AG_index].count(replication_index) == 0)
-                    {
-                        AG_new_ready_input_channel_list[related_AG_index][replication_index].start_input_channel_index = output_channel_index;
-                        AG_new_ready_input_channel_list[related_AG_index][replication_index].ready_input_channel_num = 1;
-                    }
-                    else
-                    {
-                        AG_new_ready_input_channel_list[related_AG_index][replication_index].ready_input_channel_num += 1;
-                    }
-                    //// 传递给后续层
-                    ScheduleNaiveCOMM(instruction_group_index, AG_index_in_total, related_AG_index);
-                }
+                // TODO 这里有一点要注意：最后一个节点（consumer_num==0）的consumer设置为0，也就是会回到0，但是此时0肯定已经完成了。所以最终能顺利结束。
+                int output_channel_index = input_cycle_this_replication_start + AG_produce_output_channel_num[AG_index_in_total] - 1; //// 已经算完的CONV-REP的output_channel_index，一直以最后一个output_channel_index进入后续处理
+                ScheduleNaiveInstructionPost(instruction_group_index, node_index, consumer_index, output_channel_index, replication_index, 0);
             }
-            AG_rest_output_channel_num[AG_index_in_total] -= 1;
-            AG_produce_output_channel_num[AG_index_in_total] += 1;
         }
     }
 }
 
-
-void ElementPipelineSchedule::ScheduleNaiveStage1(int instruction_group_index, int start_AG_index_in_total, int AG_num_this_replication, int input_cycle_index)
+void ElementPipelineSchedule::ScheduleNaiveInstructionStage1MVMUL(int instruction_group_index, int start_AG_index_in_total, int AG_num_this_replication, int input_cycle_index)
 {
     int node_index = PIMCOM_4_element_AG_info_list[start_AG_index_in_total].node_index;
     int level_index = PIMCOM_4_element_AG_info_list[start_AG_index_in_total].level_index;
@@ -687,7 +1017,7 @@ void ElementPipelineSchedule::ScheduleNaiveStage1(int instruction_group_index, i
     }
 }
 
-void ElementPipelineSchedule::ScheduleNaiveStage2(int instruction_group_index, int start_AG_index_in_total, int AG_num_this_replication)
+void ElementPipelineSchedule::ScheduleNaiveInstructionStage2VADD(int instruction_group_index, int start_AG_index_in_total, int AG_num_this_replication)
 {
     std::map<int, std::vector<int>> core_AG_map; //core_AG_map[core_index]保存了一系列AG
     for (int i = 0; i < AG_num_this_replication; ++i)
@@ -719,8 +1049,8 @@ void ElementPipelineSchedule::ScheduleNaiveStage2(int instruction_group_index, i
     }
 }
 
-static int comm_index = 0;
-void ElementPipelineSchedule::ScheduleNaiveStage3(int instruction_group_index, int start_AG_index_in_total, int AG_num_this_replication)
+static int comm_index = 0; //// SEND/RECV对的编号。为了后续评估模型而设置。
+void ElementPipelineSchedule::ScheduleNaiveInstructionStage3ACC(int instruction_group_index, int start_AG_index_in_total, int AG_num_this_replication)
 {
     int RecvCore = PIMCOM_4_element_AG_info_list[start_AG_index_in_total].core_index;
     int level_index = PIMCOM_4_element_AG_info_list[start_AG_index_in_total].level_index;
@@ -788,7 +1118,7 @@ void ElementPipelineSchedule::ScheduleNaiveStage3(int instruction_group_index, i
     }
 }
 
-void ElementPipelineSchedule::ScheduleNaiveStageACT(int instruction_group_index, int start_AG_index_in_total)
+void ElementPipelineSchedule::ScheduleNaiveInstructionStage3ACT(int instruction_group_index, int start_AG_index_in_total)
 {
     int core_index = PIMCOM_4_element_AG_info_list[start_AG_index_in_total].core_index;
     int level_index = PIMCOM_4_element_AG_info_list[start_AG_index_in_total].level_index;
@@ -809,8 +1139,7 @@ void ElementPipelineSchedule::ScheduleNaiveStageACT(int instruction_group_index,
     PIMCOM_4_base_instruction_ir[instruction_group_index].core_list[core_index].instruction_ir_list.push_back(Instruction_act);
 }
 
-
-void ElementPipelineSchedule::ScheduleNaiveCOMM(int instruction_group_index, int send_AG_index, int recv_AG_index)
+void ElementPipelineSchedule::ScheduleNaiveInstructionCOMM(int instruction_group_index, int send_AG_index, int recv_AG_index)
 {
     if (send_AG_index == recv_AG_index)
         return;
@@ -850,8 +1179,7 @@ void ElementPipelineSchedule::ScheduleNaiveCOMM(int instruction_group_index, int
     comm_index ++;
 }
 
-
-void ElementPipelineSchedule::ScheduleNaiveStage4Pool(int instruction_group_index, int pool_node_index, int execution_AG_index, int input_cycle_index)
+void ElementPipelineSchedule::ScheduleNaiveInstructionStage4Pool(int instruction_group_index, int pool_node_index, int execution_AG_index, int input_cycle_index)
 {
     int input_channel_num = PIMCOM_conv_pool_input_output_info[pool_node_index].output_index[input_cycle_index].size();
     int execution_core = PIMCOM_4_element_AG_info_list[execution_AG_index].core_index;
@@ -898,43 +1226,192 @@ void ElementPipelineSchedule::ScheduleNaiveStage4Pool(int instruction_group_inde
     }
 }
 
-
-void ElementPipelineSchedule::ScheduleNaive()
+void ElementPipelineSchedule::ScheduleNaiveInstructionStage4Activate(int instruction_group_index, int vec_node_index, int execution_AG_index, int input_cycle_index)
 {
-    NodeCheck.resize(node_num);
+    int execution_core = PIMCOM_4_element_AG_info_list[execution_AG_index].core_index;
+    int element_num = PIMCOM_4_element_AG_info_list[execution_AG_index].output_element_num;
 
-    //// ABSTRACT
-//    std::ofstream  OutFile("../isaac.txt", std::ios::out | std::ios::trunc);
-//    for (int i = 0; i < 32000; ++i)
-//    {
-//        ElementPipelineSchedule::ScheduleNaiveAbstract(OutFile, i);
-//    }
-//    OutFile.close();
-//    for (int i = 0; i < node_num; ++i)
-//    {
-//        std::cout << i << ":" << NodeCheck[i] << std::endl;
-//    }
-//    std::cout << "time:" << double(part_time_use) / CLOCKS_PER_SEC << "s" << std::endl;
+    std::string act_type;
+    std::string consumer_op = PIMCOM_node_list[vec_node_index].operation;
+    act_type = consumer_op == "OP_RELU" ? "VRELU" : (consumer_op == "OP_TANH" ? "VTANH" : "VSIGM");
+    struct INST Instruction_act;
+    Instruction_act.type = VEC1OP;
+    Instruction_act.level_index = PIMCOM_node_list[vec_node_index].level_index;
+    Instruction_act.operation = act_type;
+    Instruction_act.output_channel_index = input_cycle_index;
+    Instruction_act.node_index = vec_node_index;
+    Instruction_act.source = execution_AG_index;
+    Instruction_act.destination = execution_AG_index;
+    Instruction_act.rs_offset = 0;
+    Instruction_act.rd_offset = 0;
+    Instruction_act.relative_length = 1;
+    Instruction_act.element_num = Instruction_act.relative_length * element_num;
+    // TODO copy_offset_flag在element流水线中同样有用
+//    Instruction_act.copy_offset_flag = PIMCOM_node_list[consumer_index].copy_offset_flag;
+    PIMCOM_4_base_instruction_ir[instruction_group_index].core_list[execution_core].instruction_ir_list.push_back(Instruction_act);
+}
 
-    //// MAIN
-    int InstructionGroupNum = 32000;
-    PIMCOM_4_base_instruction_ir.resize(InstructionGroupNum);
-    for (int i = 0; i < InstructionGroupNum; ++i)
-    {
-        ElementPipelineSchedule::ScheduleNaiveMain(i);
+
+void ElementPipelineSchedule::ScheduleNaiveInstructionStage4Eltwise(int instruction_group_index, int vec_node_index, int execution_AG_index, int input_cycle_index)
+{
+    int execution_core = PIMCOM_4_element_AG_info_list[execution_AG_index].core_index;
+    int element_num = PIMCOM_4_element_AG_info_list[execution_AG_index].output_element_num;
+    int provider_num = PIMCOM_4_topology_consumer_provider_relation[vec_node_index].size();
+    int elt_type = PIMCOM_node_list[vec_node_index].param.eletype;
+    std::string elt_operation;
+    switch (elt_type)
+    {   case 2: elt_operation = "VADD"; break;
+        case 4: elt_operation = "VSUB"; break;
     }
-    for (int i = 0; i < node_num; ++i)
+
+    int first_provider_index = PIMCOM_4_topology_consumer_provider_relation[vec_node_index][0];
+    int index_in_all_providers1 = node_provider_index_2_index_in_all_providers[vec_node_index][first_provider_index];
+    int rep1 = vec_prov_rep_index[vec_node_index][index_in_all_providers1][input_cycle_index];
+    int AG1 = node_AG0_index_in_replication[PIMCOM_node_list[first_provider_index].AG0_node_index][rep1];
+    for (int i = 1; i < provider_num; ++i)
     {
-        std::cout << i << ":" << NodeCheck[i] << std::endl;
+        int provider_index = PIMCOM_4_topology_consumer_provider_relation[vec_node_index][i];
+        struct INST Instruction_elt;
+        Instruction_elt.type = VEC2OP;
+        Instruction_elt.level_index = PIMCOM_node_list[vec_node_index].level_index;
+        Instruction_elt.operation = elt_operation;
+        Instruction_elt.stage = "ELTWISE";
+        Instruction_elt.node_index = vec_node_index;
+        //// node_provider_index_2_index_in_all_providers，得到index为provider_index的生产者在vec_node_index中的生产者编号（0、1、2...）
+        int index_in_all_providers2 = node_provider_index_2_index_in_all_providers[vec_node_index][provider_index];
+        //// 得到vec_node_index中第index_in_all_providers2个生产者的第input_cycle_index的rep编号
+        int rep2 = vec_prov_rep_index[vec_node_index][index_in_all_providers2][input_cycle_index];
+        //// 得到该rep编号实际对应的AG编号。因为要以该AG编号作为地址，所以不得不需要它。
+        int AG2 = node_AG0_index_in_replication[PIMCOM_node_list[provider_index].AG0_node_index][rep2];
+        Instruction_elt.source_1 = AG1;
+        Instruction_elt.source_2 = AG2;
+        Instruction_elt.destination = AG1;
+        Instruction_elt.rs1_offset = 0;
+        Instruction_elt.rs2_offset = 0;
+        Instruction_elt.rd_offset = 0;
+        Instruction_elt.relative_length = 1;
+        Instruction_elt.element_num = Instruction_elt.relative_length * element_num;
+//        Instruction_elt.copy_offset_flag = PIMCOM_node_list[consumer_index].copy_offset_flag;
+        PIMCOM_4_base_instruction_ir[instruction_group_index].core_list[execution_core].instruction_ir_list.push_back(Instruction_elt);
+    }
+}
+
+
+void ElementPipelineSchedule::ScheduleNaiveInstructionStage4Concat(int instruction_group_index, int vec_node_index, int execution_AG_index, int input_cycle_index)
+{
+    int execution_core = PIMCOM_4_element_AG_info_list[execution_AG_index].core_index;
+    int provider_num = PIMCOM_4_topology_consumer_provider_relation[vec_node_index].size();
+    int rd_offset = 0;
+    for (int i = 0; i < provider_num; ++i)
+    {
+        int provider_index = PIMCOM_4_topology_consumer_provider_relation[vec_node_index][i];
+        struct INST Instruction_concat;
+        Instruction_concat.type = VEC1OP;
+        Instruction_concat.level_index = PIMCOM_node_list[vec_node_index].level_index;
+        Instruction_concat.operation = "VM";
+        Instruction_concat.stage = "ELTWISE";
+        Instruction_concat.node_index = vec_node_index;
+        //// node_provider_index_2_index_in_all_providers，得到index为provider_index的生产者在vec_node_index中的生产者编号（0、1、2...）
+        int index_in_all_providers = node_provider_index_2_index_in_all_providers[vec_node_index][provider_index];
+        //// 得到vec_node_index中第index_in_all_providers个生产者的第input_cycle_index的rep编号
+        int rep = vec_prov_rep_index[vec_node_index][index_in_all_providers][input_cycle_index];
+        //// 得到该rep编号实际对应的AG编号。因为要以该AG编号作为地址，所以不得不需要它。
+        int AG = node_AG0_index_in_replication[PIMCOM_node_list[provider_index].AG0_node_index][rep];
+        int element_num = PIMCOM_4_element_AG_info_list[AG].output_element_num;
+        Instruction_concat.source = AG;
+        Instruction_concat.destination = execution_AG_index;
+        Instruction_concat.relative_length = 1;
+        Instruction_concat.element_num = Instruction_concat.relative_length * element_num;
+        Instruction_concat.rs_offset = 0;
+        Instruction_concat.rd_offset = rd_offset;
+        rd_offset += element_num;
+//        Instruction_concat.copy_offset_flag = PIMCOM_node_list[consumer_index].copy_offset_flag;
+        PIMCOM_4_base_instruction_ir[instruction_group_index].core_list[execution_core].instruction_ir_list.push_back(Instruction_concat);
     }
 }
 
 
 
+void ElementPipelineSchedule::ScheduleNaiveDataFlow()
+{
+    //// Dataflow
+    NodeCheck.resize(node_num);
+    std::ofstream  OutFile("../output/isaac.txt", std::ios::out | std::ios::trunc);
+    for (int i = 0; i < 5500; ++i)
+    {
+        ElementPipelineSchedule::ScheduleNaiveDataflowMain(OutFile, i);
+    }
+    OutFile.close();
+
+    //// Check
+    for (int i = 0; i < node_num; ++i)
+    {
+        std::cout << i << ":" << NodeCheck[i].size() << std::endl;
+    }
+}
+
+
+void ElementPipelineSchedule::ScheduleNaiveInstruction()
+{
+    //// Instruction
+    NodeCheck.resize(node_num);
+    int InstructionGroupNum = 5500;
+    PIMCOM_4_base_instruction_ir.resize(InstructionGroupNum);
+    for (int i = 0; i < InstructionGroupNum; ++i)
+    {
+        ElementPipelineSchedule::ScheduleNaiveInstructionMain(i);
+    }
+
+    //// Check
+    for (int i = 0; i < node_num; ++i)
+    {
+        std::cout << i << ":" << NodeCheck[i].size() << std::endl;
+    }
+}
+
+void ElementPipelineSchedule::SavePreparation()
+{
+    for (int i = 0; i < node_num; ++i)
+    {
+        if (pool_rep_min_max_input_channel_index[i].size() > 0)
+        {
+            std::cout << i << std::endl;
+            for (int j = 0; j < pool_rep_min_max_input_channel_index[i].size(); ++j)
+            {
+                std::cout << "rep:" << j << std::endl;
+                std::cout << "      " << pool_rep_min_max_input_channel_index[i][j][0] << " " <<  pool_rep_min_max_input_channel_index[i][j][1]  << std::endl;
+                std::cout << "      " << pool_rep_min_max_output_channel_index[i][j][0] << " " <<  pool_rep_min_max_output_channel_index[i][j][1]  << std::endl;
+            }
+            std::cout << std::endl;
+        }
+    }
+
+    for (int i = 0; i < node_num; ++i)
+    {
+        if (PIMCOM_node_list[i].operation == "OP_CONV")
+        {
+            std::cout << i << std::endl;
+            int effective_node_index = PIMCOM_node_list[i].effective_node_index;
+            int replication_num = PIMCOM_node_list[i].replication_num;
+            for (int j = 0; j < replication_num; ++j)
+            {
+                std::cout << PIMCOM_2_AG_partition[effective_node_index].replication[j].input_cycle_this_start << "  " <<  PIMCOM_2_AG_partition[effective_node_index].replication[j].input_cycle_this_end << std::endl;
+            }
+        }
+    }
+}
+
 void ElementPipelineSchedule::ScheduleExecution()
 {
     SchedulePreparation();
-    ScheduleNaive();
+    NodeCheck.resize(node_num);
+//    SavePreparation();
+
+    //// Dataflow
+//    ScheduleNaiveDataFlow();
+
+    //// Instruction
+    ScheduleNaiveInstruction();
     Clear();
 }
 
@@ -943,6 +1420,8 @@ void ElementPipelineSchedule::Clear()
 {
     node_AG_mapping.clear();
     node_AG0_index_in_replication.clear();
+    node_replication_num.clear();
+    node_provider_index_2_index_in_all_providers.clear();
     for (int & n : AG_rest_output_channel_num) {n = 0;}
     for (int & n : AG_produce_output_channel_num) {n = 0;}
     AG_key_input_channel_index.clear();
@@ -950,91 +1429,30 @@ void ElementPipelineSchedule::Clear()
     AG_ready_input_channel_list.clear();
     pool_rep_min_max_output_channel_index.clear();
     pool_rep_min_max_input_channel_index.clear();
-    pool_rep_ready_input_channel_list.clear();
     pool_rep_produce_output_channel_num.clear();
-    pool_rep_mapping.clear();
+    node_replication_num.clear();
     pool_rep_key_input_channel_index.clear();
     pool_rep_new_ready_input_channel_list.clear();
+    vec_rep_min_max_channel_index.clear();
+    vec_rep_prov_ready_input_channel_list.clear();
+    vec_rep_produce_output_channel_num.clear();
+    vec_prov_rep_index.clear();
+    AG_new_ready_input_channel_list.clear();
     input_channel_related_AG_index.clear();
     PIMCOM_4_element_AG_info_list.clear();
     PIMCOM_4_element_AG_index_in_replication.clear();
+    PIMCOM_4_topology_provider_consumer_relation.clear();
+    PIMCOM_4_topology_consumer_provider_relation.clear();
     input_channel_related_AG_index.clear();
     NodeCheck.clear();
-    part_time_use = 0;
     comm_index = 0;
 }
 
 
 
-int ElementPipelineSchedule::GetInputChannelFromOutputIndex(int node_index, int output_index, bool is_last)
-{
-    struct PIMCOM_node Node = PIMCOM_node_list[node_index];
-    struct param Params = Node.param;
-    int input_H = Node.input_dim[2];
-    int input_W = Node.input_dim[3];
-    int conv_kernel_w = Params.kernel_w;
-    int conv_kernel_h = Params.kernel_h;
-    int conv_padding_h0 = Params.pad_h0;
-    int conv_padding_h1 = Params.pad_h1;
-    int conv_padding_w0 = Params.pad_w0;
-    int conv_padding_w1 = Params.pad_w1;
-    int conv_stride_w = Params.stride_w;
-    int conv_stride_h = Params.stride_h;
-
-    int output_W = floor(float(input_W + conv_padding_w0 + conv_padding_w1 - conv_kernel_w) / float(conv_stride_w)) + 1;
-    int output_H = floor(float(input_H + conv_padding_h0 + conv_padding_h1 - conv_kernel_h) / float(conv_stride_h)) + 1;
-    int info_output_W = Node.output_dim[3];
-    int info_output_H = Node.output_dim[2];
-    if (info_output_W != output_W || info_output_H != output_H)
-    {
-        std::cout << info_output_H << " " << output_W << std::endl;
-        std::cout << " Output Size Doesn't Match" << std::endl;
-        return -1;
-    }
-    int normal_start_index_in_w = conv_padding_w0/conv_stride_w + (conv_padding_w0 % conv_stride_w == 0 ? 0 : 1);
-    int normal_start_index_in_h = conv_padding_h0/conv_stride_h + (conv_padding_h0 % conv_stride_h == 0 ? 0 : 1);
-
-    int i = output_index / output_W;
-    int j = output_index % output_W;
-    int start_address = i * conv_stride_h * input_W + j *  conv_stride_w;
-    if (j < normal_start_index_in_w)
-        start_address -= (j * conv_stride_w);
-    else
-        start_address -= conv_padding_w0;
-    if (i < normal_start_index_in_h)
-        start_address -= (i * conv_stride_h * input_W);
-    else
-        start_address -= conv_padding_h0 * input_W;
-
-    int start_row = start_address / input_W;
-    int start_col = start_address % input_W;
-
-    int conv_w_num = conv_kernel_w;
-    if (j < normal_start_index_in_w)
-        conv_w_num = conv_w_num - conv_padding_w0 + j * conv_stride_w;
-    if (start_col + conv_kernel_w > input_W)
-        conv_w_num = conv_w_num - (start_col + conv_kernel_w - input_W);
-
-    int conv_h_num = conv_kernel_h;
-    if (i < normal_start_index_in_h)
-        conv_h_num = conv_h_num - conv_padding_h0 + i * conv_stride_h;
-    if (start_row + conv_kernel_h > input_H)
-        conv_h_num = conv_h_num - (start_row + conv_kernel_h - input_H);
-
-    int h = 0;
-    int w = 0;
-    if (is_last)
-    {
-        h = conv_h_num-1;
-        w = conv_w_num-1;
-    }
-    int position = start_address + w + h * input_W; // input_index
-    return position;
-}
-
 void ElementPipelineSchedule::SaveInstruction()
 {
-    std::ofstream OutFile("../element_instruction.txt", std::ios::out | std::ios::trunc);
+    std::ofstream OutFile("../output/element_instruction.txt", std::ios::out | std::ios::trunc);
     for (int inf = inference_start; inf <= inference_end ; ++inf)
     {
         OutFile << "***************************************************  inference_index " << inf << " *************************************************" << std::endl;

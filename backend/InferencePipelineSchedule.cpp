@@ -1008,70 +1008,6 @@ void InferencePipelineSchedule::ScheduleNaiveStage5( int node_index, int level_i
     }
 }
 
-int InferencePipelineSchedule::GetInputChannelFromOutputIndex(int node_index, int output_index, bool is_last)
-{
-    struct PIMCOM_node Node = PIMCOM_node_list[node_index];
-    struct param Params = Node.param;
-    int input_H = Node.input_dim[2];
-    int input_W = Node.input_dim[3];
-    int conv_kernel_w = Params.kernel_w;
-    int conv_kernel_h = Params.kernel_h;
-    int conv_padding_h0 = Params.pad_h0;
-    int conv_padding_h1 = Params.pad_h1;
-    int conv_padding_w0 = Params.pad_w0;
-    int conv_padding_w1 = Params.pad_w1;
-    int conv_stride_w = Params.stride_w;
-    int conv_stride_h = Params.stride_h;
-
-    int output_W = floor(float(input_W + conv_padding_w0 + conv_padding_w1 - conv_kernel_w) / float(conv_stride_w)) + 1;
-    int output_H = floor(float(input_H + conv_padding_h0 + conv_padding_h1 - conv_kernel_h) / float(conv_stride_h)) + 1;
-    int info_output_W = Node.output_dim[3];
-    int info_output_H = Node.output_dim[2];
-    if (info_output_W != output_W || info_output_H != output_H)
-    {
-        std::cout << " Output Size Doesn't Match" << std::endl;
-        return -1;
-    }
-    int normal_start_index_in_w = conv_padding_w0/conv_stride_w + (conv_padding_w0 % conv_stride_w == 0 ? 0 : 1);
-    int normal_start_index_in_h = conv_padding_h0/conv_stride_h + (conv_padding_h0 % conv_stride_h == 0 ? 0 : 1);
-
-    int i = output_index / output_W;
-    int j = output_index % output_W;
-    int start_address = i * conv_stride_h * input_W + j *  conv_stride_w;
-    if (j < normal_start_index_in_w)
-        start_address -= (j * conv_stride_w);
-    else
-        start_address -= conv_padding_w0;
-    if (i < normal_start_index_in_h)
-        start_address -= (i * conv_stride_h * input_W);
-    else
-        start_address -= conv_padding_h0 * input_W;
-    
-    int start_row = start_address / input_W;
-    int start_col = start_address % input_W;
-
-    int conv_w_num = conv_kernel_w;
-    if (j < normal_start_index_in_w)
-        conv_w_num = conv_w_num - conv_padding_w0 + j * conv_stride_w;
-    if (start_col + conv_kernel_w > input_W)
-        conv_w_num = conv_w_num - (start_col + conv_kernel_w - input_W);
-
-    int conv_h_num = conv_kernel_h;
-    if (i < normal_start_index_in_h)
-        conv_h_num = conv_h_num - conv_padding_h0 + i * conv_stride_h;
-    if (start_row + conv_kernel_h > input_H)
-        conv_h_num = conv_h_num - (start_row + conv_kernel_h - input_H);
-
-    int h = 0;
-    int w = 0;
-    if (is_last)
-    {
-        h = conv_h_num-1;
-        w = conv_w_num-1;
-    }
-    int position = start_address + w + h * input_W; // input_index
-    return position;
-}
 
 static int visit_stage6[MAX_NODE] = {0};
 void InferencePipelineSchedule::ScheduleNaiveStage6( int node_index, int level_index, int mode, int instruction_group_index)
@@ -2269,7 +2205,7 @@ void InferencePipelineSchedule::ShowInstruction()
 
 void InferencePipelineSchedule::SaveInstruction()
 {
-    std::ofstream OutFile("../fast.txt", std::ios::out | std::ios::trunc);
+    std::ofstream OutFile("../output/fast.txt", std::ios::out | std::ios::trunc);
     for (int inf = inference_start; inf <= inference_end ; ++inf)
     {
         OutFile << "***************************************************  inference_index " << inf << " *************************************************" << std::endl;

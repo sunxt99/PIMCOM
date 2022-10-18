@@ -164,18 +164,6 @@ void ElementPipelineDesign::RefineAugmentedNodeList(int node_index, int level_in
                     int consumer_AG0_core_index = PIMCOM_node_list[consumer_index].AG0_core_index;
                     int consumer_AG0_index_in_total = PIMCOM_node_list[consumer_index].AG0_index_in_total;
                     int consumer_AG0_node_index = PIMCOM_node_list[consumer_index].AG0_node_index;
-                    PIMCOM_4_effective_provider_consumer_relation[AG0_node_index].insert(consumer_index);
-                    PIMCOM_4_effective_consumer_provider_relation[consumer_index].insert(AG0_node_index);
-                    //// 感觉目前只能支持vgg这种网络，别的网络大概不能这么写
-//                    if (PIMCOM_node_list[node_index].operation == "OP_POOL")
-//                    {
-//                        PIMCOM_4_provider_consumer_relation_with_pool[node_index].insert(consumer_index);
-//                        PIMCOM_4_provider_consumer_relation_with_pool[AG0_node_index].insert(node_index);
-//                    }
-//                    else
-//                    {
-//                        PIMCOM_4_provider_consumer_relation_with_pool[AG0_node_index].insert(consumer_index);
-//                    }
                     RefineAugmentedNodeList( consumer_index, consumer_level, consumer_AG0_core_index, consumer_AG0_index_in_total, consumer_AG0_node_index);
                 }
             }

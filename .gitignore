@@ -10,3 +10,4 @@
 ir/
 .idea/
 cmake-build-debug/
+output/
