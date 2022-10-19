@@ -11,3 +11,5 @@ ir/
 .idea/
 cmake-build-debug/
 output/
+.DS_Store
+*/.DS_Store

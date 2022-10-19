@@ -60,7 +60,7 @@ void PIMCOM(const std::string model_name)
         mapping.MapHierarchy();
         clock_t timestamp_d = clock();
         std::cout << "mapping: " << double(timestamp_d - timestamp_c) / CLOCKS_PER_SEC << "s" << std::endl;
-        mapping.ShowMappingInfo();
+//        mapping.ShowMappingInfo();
 //        mapping.ShowMVMULInfo();
 //
         std::cout << "========================= SCHEDULING =========================" << std::endl;
@@ -68,9 +68,9 @@ void PIMCOM(const std::string model_name)
         ElementPipelineDesign design;
         design.DesignPipeline();
 
-        ElementPipelineSchedule schedule;
+        ElementPipelineSchedule schedule(model_name);
         schedule.ScheduleExecution();
-        schedule.SaveInstruction();
+//        schedule.SaveInstruction();
 //        schedule.SaveInstruction();
 
 //        InferencePipelineDesign design;
@@ -120,10 +120,6 @@ void PIMCOM(const std::string model_name)
         PIMCOM_4_evaluation_instruction_group_index.clear();
         PIMCOM_4_core_instruction_group_num.clear();
         PIMCOM_3_mapping_result.clear();
-//        PIMCOM_4_effective_provider_consumer_relation.clear();
-//        PIMCOM_4_effective_provider_consumer_relation.clear();
-//        PIMCOM_4_provider_consumer_relation_with_pool.clear();
-//        PIMCOM_4_consumer_provider_relation_with_pool.clear();
     }
 //    std::cout << "========================= TIME STATISTIC =========================" << std::endl;
     timestamp_2 = clock();

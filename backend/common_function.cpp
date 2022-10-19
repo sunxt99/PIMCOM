@@ -49,14 +49,14 @@ int GetInputChannelFromOutputIndex(int node_index, int output_index, bool is_las
     int conv_w_num = conv_kernel_w;
     if (j < normal_start_index_in_w)
         conv_w_num = conv_w_num - conv_padding_w0 + j * conv_stride_w;
-    if (start_col + conv_kernel_w > input_W)
-        conv_w_num = conv_w_num - (start_col + conv_kernel_w - input_W);
+    if (start_col + conv_w_num > input_W)
+        conv_w_num = conv_w_num - (start_col + conv_w_num - input_W);
 
     int conv_h_num = conv_kernel_h;
     if (i < normal_start_index_in_h)
         conv_h_num = conv_h_num - conv_padding_h0 + i * conv_stride_h;
-    if (start_row + conv_kernel_h > input_H)
-        conv_h_num = conv_h_num - (start_row + conv_kernel_h - input_H);
+    if (start_row + conv_h_num > input_H)
+        conv_h_num = conv_h_num - (start_row + conv_h_num - input_H);
 
     int h = 0;
     int w = 0;
